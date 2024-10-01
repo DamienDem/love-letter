@@ -1,3 +1,4 @@
+//app/join-game/page.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -46,21 +47,6 @@ export default function JoinGamePage() {
         setGames(gamesList);
         setIsLoading(false);
       });
-
-      // We don't need these individual events anymore as we're receiving the full list each time
-      // socket.on('newGame', (game: Game) => {
-      //   console.log('New game received:', game);
-      //   setGames(prevGames => [...prevGames, game]);
-      // });
-
-      // socket.on('playerJoined', (gameId: string, player: { id: string; name: string }) => {
-      //   console.log('Player joined:', gameId, player);
-      //   setGames(prevGames => prevGames.map(game => 
-      //     game.id === gameId 
-      //       ? { ...game, players: [...game.players, player] }
-      //       : game
-      //   ));
-      // });
     };
 
     setupSocket();
