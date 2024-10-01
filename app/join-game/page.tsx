@@ -1,0 +1,164 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
+import { initSocket, getSocket } from '@/lib/socketio';
+import { Socket } from 'socket.io-client';
+
+interface Game {
+  id: string;
+  name: string;
+  players: { id: string; name: string }[];
+  maxPlayers: number;
+}
+
+export default function JoinGamePage() {
+  const router = useRouter();
+  const [games, setGames] = useState<Game[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [playerName, setPlayerName] = useState("");
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let socket: Socket;
+
+    const setupSocket = async () => {
+      socket = await initSocket();
+
+      socket.on('connect', () => {
+        console.log('Socket connected');
+        socket.emit('getGames');
+      });
+
+      socket.on('gamesList', (gamesList: Game[]) => {
+        console.log('Received games list:', gamesList);
+        setGames(gamesList);
+        setIsLoading(false);
+      });
+
+      // We don't need these individual events anymore as we're receiving the full list each time
+      // socket.on('newGame', (game: Game) => {
+      //   console.log('New game received:', game);
+      //   setGames(prevGames => [...prevGames, game]);
+      // });
+
+      // socket.on('playerJoined', (gameId: string, player: { id: string; name: string }) => {
+      //   console.log('Player joined:', gameId, player);
+      //   setGames(prevGames => prevGames.map(game => 
+      //     game.id === gameId 
+      //       ? { ...game, players: [...game.players, player] }
+      //       : game
+      //   ));
+      // });
+    };
+
+    setupSocket();
+
+    return () => {
+      if (socket) {
+        console.log('Cleaning up socket listeners');
+        socket.off('connect');
+        socket.off('gamesList');
+      }
+    };
+  }, []);
+
+  const handleJoinClick = (gameId: string) => {
+    setSelectedGameId(gameId);
+    setIsModalOpen(true);
+  };
+
+  const handleJoinGame = () => {
+    if (selectedGameId && playerName.trim() !== "") {
+      const player = {
+        id: Date.now().toString(),
+        name: playerName.trim(),
+      };
+      const socket = getSocket();
+      if (socket) {
+        socket.emit('joinGame', selectedGameId, player);
+        router.push(`/game/${selectedGameId}`);
+      } else {
+        console.error('Socket not initialized');
+      }
+    }
+  };
+
+  const handleReturnToCreateGame = () => {
+    router.push('/create-game');
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-[600px] p-6 bg-white rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold mb-6 text-center">
+          Parties disponibles
+        </h2>
+        <div className="space-y-4">
+          {isLoading ? (
+            <p>Chargement des parties en cours...</p>
+          ) : games.length > 0 ? (
+            games.map((game) => (
+              <div
+                key={game.id}
+                className="flex items-center justify-between p-4 border rounded"
+              >
+                <div>
+                  <h3 className="font-semibold">{game.name}</h3>
+                  <p className="text-sm text-gray-500">
+                    {game.players.length}/{game.maxPlayers} joueurs
+                  </p>
+                </div>
+                {game.players.length < game.maxPlayers && (
+                  <Button onClick={() => handleJoinClick(game.id)}>
+                    Rejoindre
+                  </Button>
+                )}
+              </div>
+            ))
+          ) : (
+            <p>Aucune partie disponible pour le moment.</p>
+          )}
+        </div>
+        <div className="mt-6">
+          <Button variant="outline" onClick={handleReturnToCreateGame} className="w-full">
+            Retour à la création de partie
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rejoindre la partie</DialogTitle>
+            <DialogDescription>
+              Entrez votre nom pour rejoindre la partie.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={playerName}
+            onChange={(e) => setPlayerName(e.target.value)}
+            placeholder="Votre nom"
+          />
+          <DialogFooter>
+            <Button onClick={() => setIsModalOpen(false)} variant="outline">
+              Annuler
+            </Button>
+            <Button onClick={handleJoinGame}>Rejoindre</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
