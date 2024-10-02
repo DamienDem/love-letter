@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,9 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRouter } from 'next/navigation';
-import { initSocket } from '@/lib/socketio';
-import { Socket } from 'socket.io-client';
+import { useRouter } from "next/navigation";
+import { getSocket, initSocket } from "@/lib/socketio";
+import { Socket } from "socket.io-client";
 
 interface FormData {
   gameName: string;
@@ -41,16 +41,18 @@ export default function CreateGameForm() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSelectChange = (value: string) => {
-    setFormData(prev => ({ ...prev, numPlayers: value }));
+    setFormData((prev) => ({ ...prev, numPlayers: value }));
   };
 
   const handleCreateGame = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Form data:", formData);
+    const socket = getSocket();
+    console.log("socket", socket);
 
     const gameData: GameData = {
       id: Date.now().toString(),
@@ -59,12 +61,12 @@ export default function CreateGameForm() {
       maxPlayers: parseInt(formData.numPlayers),
     };
 
-    socket?.emit('createGame', gameData);
+    socket?.emit("createGame", gameData);
     router.push(`/game/${gameData.id}`);
   };
 
   const handleJoinGame = () => {
-    router.push('/join-game');
+    router.push("/join-game");
   };
 
   return (

@@ -25,6 +25,7 @@ export interface Player {
   isEliminated: boolean;
   points: number;
   isProtected: boolean;
+  socketId?:string
 }
 
 export interface Game {
