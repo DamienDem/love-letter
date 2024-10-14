@@ -10,8 +10,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
-import { getSocket, initSocket } from "@/lib/socketio";
-import { Socket } from "socket.io-client";
+import { v4 as uuidv4 } from "uuid";
+import { socket } from "@/lib/socket";
 
 interface FormData {
   gameName: string;
@@ -20,7 +20,7 @@ interface FormData {
 }
 
 interface GameData {
-  id: string;
+  gameId: string;
   name: string;
   players: { id: string; name: string }[];
   maxPlayers: number;
@@ -33,10 +33,33 @@ export default function CreateGameForm() {
     numPlayers: "2",
     creatorName: "",
   });
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    initSocket().then(setSocket);
+    if (socket.connected) {
+      onConnect();
+    }
+
+    function onConnect() {
+      setIsConnected(true);
+      console.log("Socket connected");
+      socket.emit("getGames");
+    }
+
+    function onDisconnect() {
+      setIsConnected(false);
+    }
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+
+    return () => {
+      if (socket) {
+        console.log("Cleaning up socket listeners");
+        socket.off("connect", onConnect);
+        socket.off("disconnect", onDisconnect);
+      }
+    };
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,24 +73,27 @@ export default function CreateGameForm() {
 
   const handleCreateGame = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Form data:", formData);
-    const socket = getSocket();
-    console.log("socket", socket);
+
+    const gameId = uuidv4();
+    const playerId = uuidv4();
 
     const gameData: GameData = {
-      id: Date.now().toString(),
+      gameId: gameId,
       name: formData.gameName,
-      players: [{ id: Date.now().toString(), name: formData.creatorName }],
+      players: [{ id: playerId, name: formData.creatorName }],
       maxPlayers: parseInt(formData.numPlayers),
     };
 
-    socket?.emit("createGame", gameData);
-    router.push(`/game/${gameData.id}`);
+    console.log("Emitting createGame event:", gameData);
+    socket.emit("createGame", gameData);
+    router.push(`/game/${gameId}?playerId=${playerId}`);
   };
 
   const handleJoinGame = () => {
     router.push("/join-game");
   };
+
+  if (!isConnected) return <div>Non connectés</div>;
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">

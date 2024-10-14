@@ -1,16 +1,16 @@
 // lib/gameLogic.ts
 
 export enum CardType {
-  Garde = 'Garde',
-  Espionne = 'Espionne',
-  Pretre = 'Pretre',
-  Baron = 'Baron',
-  Servante = 'Servante',
-  Prince = 'Prince',
-  Chancelier = 'Chancelier',
-  Roi = 'Roi',
-  Comtesse = 'Comtesse',
-  Princesse = 'Princesse',
+  Garde = "Garde",
+  Espionne = "Espionne",
+  Pretre = "Pretre",
+  Baron = "Baron",
+  Servante = "Servante",
+  Prince = "Prince",
+  Chancelier = "Chancelier",
+  Roi = "Roi",
+  Comtesse = "Comtesse",
+  Princesse = "Princesse",
 }
 
 export interface Card {
@@ -25,7 +25,7 @@ export interface Player {
   isEliminated: boolean;
   points: number;
   isProtected: boolean;
-  socketId?:string
+  socketId?: string;
 }
 
 export interface Game {
@@ -64,19 +64,25 @@ const shuffleDeck = (deck: Card[]): Card[] => {
   return deck.sort(() => Math.random() - 0.5);
 };
 
-export const initializeGame = (gameData: { id: string; name: string; players: { id: string; name: string }[]; maxPlayers: number; pointsToWin: number }): Game => {
+export const initializeGame = (gameData: {
+  id: string;
+  name: string;
+  players: { id: string; name: string }[];
+  maxPlayers: number;
+  pointsToWin: number;
+}): Game => {
   const deck = createDeck();
   const hiddenCardIndex = Math.floor(Math.random() * deck.length);
   const hiddenCard = deck.splice(hiddenCardIndex, 1)[0];
 
-  const players: Player[] = gameData.players.map(p => ({
+  const players: Player[] = gameData.players.map((p) => ({
     ...p,
     hand: [deck.pop()!],
     isEliminated: false,
     points: 0,
-    isProtected: false
+    isProtected: false,
   }));
-  
+
   return {
     ...gameData,
     players,
@@ -89,7 +95,7 @@ export const initializeGame = (gameData: { id: string; name: string; players: { 
     hiddenCard,
     chancellorDrawnCards: [],
     currentRound: 1,
-    pointsToWin: gameData.pointsToWin
+    pointsToWin: gameData.pointsToWin,
   };
 };
 
@@ -98,7 +104,7 @@ export const startNewRound = (game: Game): Game => {
   const hiddenCardIndex = Math.floor(Math.random() * game.deck.length);
   game.hiddenCard = game.deck.splice(hiddenCardIndex, 1)[0];
 
-  game.players.forEach(player => {
+  game.players.forEach((player) => {
     player.hand = [game.deck.pop()!];
     player.isEliminated = false;
     player.isProtected = false;
@@ -119,7 +125,8 @@ export const startTurn = (game: Game): Game => {
   currentPlayer.isProtected = false;
 
   if (currentPlayer.isEliminated) {
-    game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
+    game.currentPlayerIndex =
+      (game.currentPlayerIndex + 1) % game.players.length;
     return startTurn(game);
   }
 
@@ -134,14 +141,18 @@ export const startTurn = (game: Game): Game => {
 };
 
 export const checkEndOfRound = (game: Game): Game => {
-  const activePlayers = game.players.filter(p => !p.isEliminated);
+  const activePlayers = game.players.filter((p) => !p.isEliminated);
 
   if (activePlayers.length === 1 || game.deck.length === 0) {
-    const activeEspionnes = activePlayers.filter(p => game.playedEspionnes.includes(p.id));
+    const activeEspionnes = activePlayers.filter((p) =>
+      game.playedEspionnes.includes(p.id)
+    );
     if (activeEspionnes.length === 1) {
       const espionneWinner = activeEspionnes[0];
       espionneWinner.points++;
-      console.log(`${espionneWinner.name} gagne un point pour être la seule Espionne en jeu.`);
+      console.log(
+        `${espionneWinner.name} gagne un point pour être la seule Espionne en jeu.`
+      );
     }
 
     let roundWinners: Player[];
@@ -149,23 +160,29 @@ export const checkEndOfRound = (game: Game): Game => {
     if (activePlayers.length === 1) {
       roundWinners = [activePlayers[0]];
     } else {
-      const highestValue = Math.max(...activePlayers.map(p => p.hand[0].value));
-      roundWinners = activePlayers.filter(p => p.hand[0].value === highestValue);
+      const highestValue = Math.max(
+        ...activePlayers.map((p) => p.hand[0].value)
+      );
+      roundWinners = activePlayers.filter(
+        (p) => p.hand[0].value === highestValue
+      );
     }
 
-    roundWinners.forEach(winner => {
+    roundWinners.forEach((winner) => {
       winner.points++;
       console.log(`${winner.name} gagne la manche et un point.`);
     });
 
     game.roundWinner = roundWinners.length === 1 ? roundWinners[0] : null;
 
-    const winners = game.players.filter(p => p.points >= game.pointsToWin);
+    const winners = game.players.filter((p) => p.points >= game.pointsToWin);
     if (winners.length > 0) {
-      game.gameWinner = winners.reduce((prev, current) => 
-        (prev.points > current.points) ? prev : current
+      game.gameWinner = winners.reduce((prev, current) =>
+        prev.points > current.points ? prev : current
       );
-      console.log(`${game.gameWinner.name} gagne la partie avec ${game.gameWinner.points} points!`);
+      console.log(
+        `${game.gameWinner.name} gagne la partie avec ${game.gameWinner.points} points!`
+      );
     } else {
       game = startNewRound(game);
     }
@@ -174,21 +191,33 @@ export const checkEndOfRound = (game: Game): Game => {
   return game;
 };
 
-export const playGuard = (game: Game, playerId: string, targetPlayerId: string, guessedCard: CardType): Game => {
-  const player = game.players.find(p => p.id === playerId);
-  const targetPlayer = game.players.find(p => p.id === targetPlayerId);
+export const playGuard = (
+  game: Game,
+  playerId: string,
+  targetPlayerId: string,
+  guessedCard: CardType
+): Game => {
+  const player = game.players.find((p) => p.id === playerId);
+  const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
 
   if (!player || !targetPlayer) throw new Error("Joueur non trouvé");
-  if (player.isEliminated || targetPlayer.isEliminated) throw new Error("Un des joueurs est déjà éliminé");
-  if (targetPlayer.isProtected) throw new Error("Le joueur ciblé est protégé par la Servante");
+  if (player.isEliminated || targetPlayer.isEliminated)
+    throw new Error("Un des joueurs est déjà éliminé");
+  if (targetPlayer.isProtected)
+    throw new Error("Le joueur ciblé est protégé par la Servante");
 
-  const guardIndex = player.hand.findIndex(card => card.type === CardType.Garde);
+  const guardIndex = player.hand.findIndex(
+    (card) => card.type === CardType.Garde
+  );
   if (guardIndex === -1) throw new Error("Le joueur n'a pas de Garde en main");
 
   const playedCard = player.hand.splice(guardIndex, 1)[0];
   game.discardPile.push(playedCard);
 
-  if (targetPlayer.hand[0].type === guessedCard && guessedCard !== CardType.Garde) {
+  if (
+    targetPlayer.hand[0].type === guessedCard &&
+    guessedCard !== CardType.Garde
+  ) {
     targetPlayer.isEliminated = true;
   }
 
@@ -196,13 +225,16 @@ export const playGuard = (game: Game, playerId: string, targetPlayerId: string, 
 };
 
 export const playEspionne = (game: Game, playerId: string): Game => {
-  const player = game.players.find(p => p.id === playerId);
+  const player = game.players.find((p) => p.id === playerId);
 
   if (!player) throw new Error("Joueur non trouvé");
   if (player.isEliminated) throw new Error("Le joueur est déjà éliminé");
 
-  const espionneIndex = player.hand.findIndex(card => card.type === CardType.Espionne);
-  if (espionneIndex === -1) throw new Error("Le joueur n'a pas d'Espionne en main");
+  const espionneIndex = player.hand.findIndex(
+    (card) => card.type === CardType.Espionne
+  );
+  if (espionneIndex === -1)
+    throw new Error("Le joueur n'a pas d'Espionne en main");
 
   const playedCard = player.hand.splice(espionneIndex, 1)[0];
   game.discardPile.push(playedCard);
@@ -211,32 +243,49 @@ export const playEspionne = (game: Game, playerId: string): Game => {
   return game;
 };
 
-export const playPretre = (game: Game, playerId: string, targetPlayerId: string): { game: Game; targetCard: Card } => {
-  const player = game.players.find(p => p.id === playerId);
-  const targetPlayer = game.players.find(p => p.id === targetPlayerId);
+export const playPretre = (
+  game: Game,
+  playerId: string,
+  targetPlayerId: string
+): Game => {
+  const player = game.players.find((p) => p.id === playerId);
+  const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
 
   if (!player || !targetPlayer) throw new Error("Joueur non trouvé");
-  if (player.isEliminated || targetPlayer.isEliminated) throw new Error("Un des joueurs est déjà éliminé");
-  if (targetPlayer.isProtected) throw new Error("Le joueur ciblé est protégé par la Servante");
+  if (player.isEliminated || targetPlayer.isEliminated)
+    throw new Error("Un des joueurs est déjà éliminé");
+  if (targetPlayer.isProtected)
+    throw new Error("Le joueur ciblé est protégé par la Servante");
 
-  const pretreIndex = player.hand.findIndex(card => card.type === CardType.Pretre);
-  if (pretreIndex === -1) throw new Error("Le joueur n'a pas de Prêtre en main");
+  const pretreIndex = player.hand.findIndex(
+    (card) => card.type === CardType.Pretre
+  );
+  if (pretreIndex === -1)
+    throw new Error("Le joueur n'a pas de Prêtre en main");
 
   const playedCard = player.hand.splice(pretreIndex, 1)[0];
   game.discardPile.push(playedCard);
 
-  return { game, targetCard: targetPlayer.hand[0] };
+  return game;
 };
 
-export const playBaron = (game: Game, playerId: string, targetPlayerId: string): Game => {
-  const player = game.players.find(p => p.id === playerId);
-  const targetPlayer = game.players.find(p => p.id === targetPlayerId);
+export const playBaron = (
+  game: Game,
+  playerId: string,
+  targetPlayerId: string
+): Game => {
+  const player = game.players.find((p) => p.id === playerId);
+  const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
 
   if (!player || !targetPlayer) throw new Error("Joueur non trouvé");
-  if (player.isEliminated || targetPlayer.isEliminated) throw new Error("Un des joueurs est déjà éliminé");
-  if (targetPlayer.isProtected) throw new Error("Le joueur ciblé est protégé par la Servante");
+  if (player.isEliminated || targetPlayer.isEliminated)
+    throw new Error("Un des joueurs est déjà éliminé");
+  if (targetPlayer.isProtected)
+    throw new Error("Le joueur ciblé est protégé par la Servante");
 
-  const baronIndex = player.hand.findIndex(card => card.type === CardType.Baron);
+  const baronIndex = player.hand.findIndex(
+    (card) => card.type === CardType.Baron
+  );
   if (baronIndex === -1) throw new Error("Le joueur n'a pas de Baron en main");
 
   const playedCard = player.hand.splice(baronIndex, 1)[0];
@@ -252,13 +301,16 @@ export const playBaron = (game: Game, playerId: string, targetPlayerId: string):
 };
 
 export const playServante = (game: Game, playerId: string): Game => {
-  const player = game.players.find(p => p.id === playerId);
+  const player = game.players.find((p) => p.id === playerId);
 
   if (!player) throw new Error("Joueur non trouvé");
   if (player.isEliminated) throw new Error("Le joueur est déjà éliminé");
 
-  const servanteIndex = player.hand.findIndex(card => card.type === CardType.Servante);
-  if (servanteIndex === -1) throw new Error("Le joueur n'a pas de Servante en main");
+  const servanteIndex = player.hand.findIndex(
+    (card) => card.type === CardType.Servante
+  );
+  if (servanteIndex === -1)
+    throw new Error("Le joueur n'a pas de Servante en main");
 
   const playedCard = player.hand.splice(servanteIndex, 1)[0];
   game.discardPile.push(playedCard);
@@ -268,16 +320,25 @@ export const playServante = (game: Game, playerId: string): Game => {
   return game;
 };
 
-export const playPrince = (game: Game, playerId: string, targetPlayerId: string): Game => {
-  const player = game.players.find(p => p.id === playerId);
-  const targetPlayer = game.players.find(p => p.id === targetPlayerId);
+export const playPrince = (
+  game: Game,
+  playerId: string,
+  targetPlayerId: string
+): Game => {
+  const player = game.players.find((p) => p.id === playerId);
+  const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
 
   if (!player || !targetPlayer) throw new Error("Joueur non trouvé");
-  if (player.isEliminated || targetPlayer.isEliminated) throw new Error("Un des joueurs est déjà éliminé");
-  if (targetPlayer.isProtected) throw new Error("Le joueur ciblé est protégé par la Servante");
+  if (player.isEliminated || targetPlayer.isEliminated)
+    throw new Error("Un des joueurs est déjà éliminé");
+  if (targetPlayer.isProtected)
+    throw new Error("Le joueur ciblé est protégé par la Servante");
 
-  const princeIndex = player.hand.findIndex(card => card.type === CardType.Prince);
-  if (princeIndex === -1) throw new Error("Le joueur n'a pas de Prince en main");
+  const princeIndex = player.hand.findIndex(
+    (card) => card.type === CardType.Prince
+  );
+  if (princeIndex === -1)
+    throw new Error("Le joueur n'a pas de Prince en main");
 
   const playedCard = player.hand.splice(princeIndex, 1)[0];
   game.discardPile.push(playedCard);
@@ -301,13 +362,16 @@ export const playPrince = (game: Game, playerId: string, targetPlayerId: string)
 };
 
 export const playChancelier = (game: Game, playerId: string): Game => {
-  const player = game.players.find(p => p.id === playerId);
+  const player = game.players.find((p) => p.id === playerId);
 
   if (!player) throw new Error("Joueur non trouvé");
   if (player.isEliminated) throw new Error("Le joueur est déjà éliminé");
 
-  const chancelierIndex = player.hand.findIndex(card => card.type === CardType.Chancelier);
-  if (chancelierIndex === -1) throw new Error("Le joueur n'a pas de Chancelier en main");
+  const chancelierIndex = player.hand.findIndex(
+    (card) => card.type === CardType.Chancelier
+  );
+  if (chancelierIndex === -1)
+    throw new Error("Le joueur n'a pas de Chancelier en main");
 
   const playedCard = player.hand.splice(chancelierIndex, 1)[0];
   game.discardPile.push(playedCard);
@@ -321,21 +385,31 @@ export const playChancelier = (game: Game, playerId: string): Game => {
   return game;
 };
 
-export const finishChancelierTurn = (game: Game, playerId: string, keptCardIndex: number, cardOrder: number[]): Game => {
-  const player = game.players.find(p => p.id === playerId);
+export const finishChancelierTurn = (
+  game: Game,
+  playerId: string,
+  keptCardIndex: number,
+  cardOrder: number[]
+): Game => {
+  const player = game.players.find((p) => p.id === playerId);
 
   if (!player) throw new Error("Joueur non trouvé");
   if (player.isEliminated) throw new Error("Le joueur est déjà éliminé");
-  if (game.chancellorDrawnCards.length === 0) throw new Error("Aucune carte n'a été piochée par le Chancelier");
-  if (keptCardIndex < 0 || keptCardIndex >= game.chancellorDrawnCards.length) throw new Error("Index de la carte gardée invalide");
-  if (cardOrder.length !== game.chancellorDrawnCards.length - 1) throw new Error("L'ordre des cartes à remettre sous le deck est invalide");
+  if (game.chancellorDrawnCards.length === 0)
+    throw new Error("Aucune carte n'a été piochée par le Chancelier");
+  if (keptCardIndex < 0 || keptCardIndex >= game.chancellorDrawnCards.length)
+    throw new Error("Index de la carte gardée invalide");
+  if (cardOrder.length !== game.chancellorDrawnCards.length - 1)
+    throw new Error("L'ordre des cartes à remettre sous le deck est invalide");
 
   // Garder la carte choisie
   const keptCard = game.chancellorDrawnCards[keptCardIndex];
   player.hand.push(keptCard);
 
   // Remettre les autres cartes sous le deck dans l'ordre spécifié
-  const cardsToReturn = game.chancellorDrawnCards.filter((_, index) => index !== keptCardIndex);
+  const cardsToReturn = game.chancellorDrawnCards.filter(
+    (_, index) => index !== keptCardIndex
+  );
   for (const index of cardOrder) {
     game.deck.unshift(cardsToReturn[index]);
   }
@@ -349,15 +423,21 @@ export const finishChancelierTurn = (game: Game, playerId: string, keptCardIndex
   return startTurn(game);
 };
 
-export const playRoi = (game: Game, playerId: string, targetPlayerId: string): Game => {
-  const player = game.players.find(p => p.id === playerId);
-  const targetPlayer = game.players.find(p => p.id === targetPlayerId);
+export const playRoi = (
+  game: Game,
+  playerId: string,
+  targetPlayerId: string
+): Game => {
+  const player = game.players.find((p) => p.id === playerId);
+  const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
 
   if (!player || !targetPlayer) throw new Error("Joueur non trouvé");
-  if (player.isEliminated || targetPlayer.isEliminated) throw new Error("Un des joueurs est déjà éliminé");
-  if (targetPlayer.isProtected) throw new Error("Le joueur ciblé est protégé par la Servante");
+  if (player.isEliminated || targetPlayer.isEliminated)
+    throw new Error("Un des joueurs est déjà éliminé");
+  if (targetPlayer.isProtected)
+    throw new Error("Le joueur ciblé est protégé par la Servante");
 
-  const roiIndex = player.hand.findIndex(card => card.type === CardType.Roi);
+  const roiIndex = player.hand.findIndex((card) => card.type === CardType.Roi);
   if (roiIndex === -1) throw new Error("Le joueur n'a pas de Roi en main");
 
   const playedCard = player.hand.splice(roiIndex, 1)[0];
@@ -372,13 +452,16 @@ export const playRoi = (game: Game, playerId: string, targetPlayerId: string): G
 };
 
 export const playComtesse = (game: Game, playerId: string): Game => {
-  const player = game.players.find(p => p.id === playerId);
+  const player = game.players.find((p) => p.id === playerId);
 
   if (!player) throw new Error("Joueur non trouvé");
   if (player.isEliminated) throw new Error("Le joueur est déjà éliminé");
 
-  const comtesseIndex = player.hand.findIndex(card => card.type === CardType.Comtesse);
-  if (comtesseIndex === -1) throw new Error("Le joueur n'a pas de Comtesse en main");
+  const comtesseIndex = player.hand.findIndex(
+    (card) => card.type === CardType.Comtesse
+  );
+  if (comtesseIndex === -1)
+    throw new Error("Le joueur n'a pas de Comtesse en main");
 
   const playedCard = player.hand.splice(comtesseIndex, 1)[0];
   game.discardPile.push(playedCard);
@@ -387,13 +470,16 @@ export const playComtesse = (game: Game, playerId: string): Game => {
 };
 
 export const playPrincesse = (game: Game, playerId: string): Game => {
-  const player = game.players.find(p => p.id === playerId);
+  const player = game.players.find((p) => p.id === playerId);
 
   if (!player) throw new Error("Joueur non trouvé");
   if (player.isEliminated) throw new Error("Le joueur est déjà éliminé");
 
-  const princesseIndex = player.hand.findIndex(card => card.type === CardType.Princesse);
-  if (princesseIndex === -1) throw new Error("Le joueur n'a pas de Princesse en main");
+  const princesseIndex = player.hand.findIndex(
+    (card) => card.type === CardType.Princesse
+  );
+  if (princesseIndex === -1)
+    throw new Error("Le joueur n'a pas de Princesse en main");
 
   const playedCard = player.hand.splice(princesseIndex, 1)[0];
   game.discardPile.push(playedCard);
@@ -404,12 +490,20 @@ export const playPrincesse = (game: Game, playerId: string): Game => {
 };
 
 const mustPlayComtesse = (hand: Card[]): boolean => {
-  const hasComtesse = hand.some(card => card.type === CardType.Comtesse);
-  const hasPrinceOrKing = hand.some(card => card.type === CardType.Prince || card.type === CardType.Roi);
+  const hasComtesse = hand.some((card) => card.type === CardType.Comtesse);
+  const hasPrinceOrKing = hand.some(
+    (card) => card.type === CardType.Prince || card.type === CardType.Roi
+  );
   return hasComtesse && hasPrinceOrKing;
 };
 
-export const playCard = (game: Game, playerId: string, cardType: CardType, targetPlayerId?: string, guessedCard?: CardType): Game | { game: Game; targetCard?: Card } => {
+export const playCard = (
+  game: Game,
+  playerId: string,
+  cardType: CardType,
+  targetPlayerId?: string,
+  guessedCard?: CardType
+): Game | { game: Game; targetCard?: Card } => {
   if (game.players[game.currentPlayerIndex].id !== playerId) {
     throw new Error("Ce n'est pas le tour de ce joueur");
   }
@@ -417,10 +511,12 @@ export const playCard = (game: Game, playerId: string, cardType: CardType, targe
   const player = game.players[game.currentPlayerIndex];
 
   if (mustPlayComtesse(player.hand) && cardType !== CardType.Comtesse) {
-    throw new Error("Vous devez jouer la Comtesse lorsque vous avez le Roi ou le Prince en main");
+    throw new Error(
+      "Vous devez jouer la Comtesse lorsque vous avez le Roi ou le Prince en main"
+    );
   }
 
-  let result;
+  let result: Game;
   switch (cardType) {
     case CardType.Garde:
       if (!targetPlayerId || !guessedCard) {
@@ -472,14 +568,20 @@ export const playCard = (game: Game, playerId: string, cardType: CardType, targe
   }
 
   if (cardType !== CardType.Chancelier && !player.isEliminated) {
-    game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
-    return startTurn(result instanceof Object && 'game' in result ? result.game : result);
+    result.currentPlayerIndex =
+      (game.currentPlayerIndex + 1) % game.players.length;
   }
 
   return result;
 };
 
-export const playTurn = (game: Game, playerId: string, cardType: CardType, targetPlayerId?: string, guessedCard?: CardType): Game | { game: Game; targetCard?: Card } => {
+export const playTurn = (
+  game: Game,
+  playerId: string,
+  cardType: CardType,
+  targetPlayerId?: string,
+  guessedCard?: CardType
+): Game | { game: Game; targetCard?: Card } => {
   game = startTurn(game);
   game = checkEndOfRound(game);
 
@@ -487,6 +589,14 @@ export const playTurn = (game: Game, playerId: string, cardType: CardType, targe
     return game;
   }
 
-  const result = playCard(game, playerId, cardType, targetPlayerId, guessedCard);
-  return checkEndOfRound(result instanceof Object && 'game' in result ? result.game : result);
+  const result = playCard(
+    game,
+    playerId,
+    cardType,
+    targetPlayerId,
+    guessedCard
+  );
+  return checkEndOfRound(
+    result instanceof Object && "game" in result ? result.game : result
+  );
 };

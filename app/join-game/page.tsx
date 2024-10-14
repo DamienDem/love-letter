@@ -1,4 +1,3 @@
-//app/join-game/page.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -13,8 +12,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
-import { initSocket, getSocket } from '@/lib/socketio';
-import { Socket } from 'socket.io-client';
+import { socket } from "@/lib/socket";
+import { v4 as uuidv4 } from "uuid";
 
 interface Game {
   id: string;
@@ -31,32 +30,36 @@ export default function JoinGamePage() {
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [isConnected, setIsConnected] = useState(false);
+
   useEffect(() => {
-    let socket: Socket;
+    if (socket.connected) {
+      onConnect();
+    }
 
-    const setupSocket = async () => {
-      socket = await initSocket();
-
-      socket.on('connect', () => {
-        console.log('Socket connected');
-        socket.emit('getGames');
-      });
-
-      socket.on('gamesList', (gamesList: Game[]) => {
-        console.log('Received games list:', gamesList);
-        setGames(gamesList);
+    function onConnect() {
+      setIsConnected(true);
+      console.log("Socket connected");
+      socket.emit("getGames");
+      socket.on("gamesList", (games) => {
         setIsLoading(false);
+        setGames(games);
       });
-    };
+    }
 
-    setupSocket();
+    function onDisconnect() {
+      setIsConnected(false);
+    }
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
 
     return () => {
-      if (socket) {
-        console.log('Cleaning up socket listeners');
-        socket.off('connect');
-        socket.off('gamesList');
-      }
+      console.log("Cleaning up socket listeners");
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect");
+      socket.off("gamesList");
     };
   }, []);
 
@@ -67,24 +70,27 @@ export default function JoinGamePage() {
 
   const handleJoinGame = () => {
     if (selectedGameId && playerName.trim() !== "") {
+      const playerId = uuidv4();
       const player = {
-        id: Date.now().toString(),
+        id: playerId,
         name: playerName.trim(),
       };
-      const socket = getSocket();
+      console.log("Joining game", selectedGameId);
+      
       if (socket) {
-        socket.emit('joinGame', selectedGameId, player);
-        router.push(`/game/${selectedGameId}`);
+        socket.emit("joinGame", selectedGameId, player);
+        router.push(`/game/${selectedGameId}?playerId=${playerId}`);
       } else {
-        console.error('Socket not initialized');
+        console.error("Socket not initialized");
       }
     }
   };
 
   const handleReturnToCreateGame = () => {
-    router.push('/create-game');
+    router.push("/");
   };
 
+  if (!isConnected) return <div>Non connectés</div>;
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-[600px] p-6 bg-white rounded-lg shadow-md">
@@ -118,7 +124,11 @@ export default function JoinGamePage() {
           )}
         </div>
         <div className="mt-6">
-          <Button variant="outline" onClick={handleReturnToCreateGame} className="w-full">
+          <Button
+            variant="outline"
+            onClick={handleReturnToCreateGame}
+            className="w-full"
+          >
             Retour à la création de partie
           </Button>
         </div>
