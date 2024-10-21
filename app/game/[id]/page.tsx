@@ -1,222 +1,227 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useSearchParams, useParams } from "next/navigation";
-import { Game, Player, Card, CardType } from "@/lib/gameLogic";
-import { Button } from "@/components/ui/button";
 import { socket } from "@/lib/socket";
+import { CardType, Game, Player, Card } from "@/lib/gameLogic";
+import GameTable from "@/components/GameTable";
+import PlayCardModal from "@/components/PlayCardModal";
+import DiscardPile from "@/components/DiscardPile";
+import PriestEffectModal from "@/components/PriestEffectModal";
+import ChancelierActionModal from "@/components/ChancelierActionModal";
 
-const GameComponent = () => {
+const GamePage: React.FC = () => {
   const searchParams = useSearchParams();
   const params = useParams();
   const playerId = searchParams?.get("playerId");
-  const gameId = params.id;
+  const gameId = params.id as string;
+
   const [game, setGame] = useState<Game | null>(null);
-  const [player, setPlayer] = useState<Player | null>(null);
-  const [selectedCard, setSelectedCard] = useState<Card | null>(null);
-  const [targetPlayer, setTargetPlayer] = useState<string | null>(null);
-  const [guessedCard, setGuessedCard] = useState<CardType | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isMyTurn, setIsMyTurn] = useState(false);
-  const [hasDrawnCard, setHasDrawnCard] = useState(false);
+  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPlayCardModalOpen, setIsPlayCardModalOpen] = useState(false);
+  const [isPriestModalOpen, setIsPriestModalOpen] = useState(false);
+  const [revealedCard, setRevealedCard] = useState<Card | null>(null);
+  const [targetPlayer, setTargetPlayer] = useState<string>("");
+  const [isChancelierModalOpen, setIsChancelierModalOpen] = useState(false);
 
   useEffect(() => {
-    if (socket.connected) {
-      onConnect();
+    if (!playerId || !gameId) {
+      console.error("PlayerId or GameId is missing");
+      setIsLoading(false);
+      return;
     }
 
-    function onConnect() {
-      setIsConnected(true);
-      console.log("Socket connected");
-      socket.emit("getGameData", gameId);
+    console.log("Connecting to game:", gameId, "as player:", playerId);
+
+    if (!socket.connected) {
+      console.log("Socket not connected, attempting to connect...");
+      socket.connect();
     }
 
-    function onDisconnect() {
-      setIsConnected(false);
-    }
+    socket.emit("getGameState", gameId);
 
-    socket.on("game", (updatedGame: Game) => {
+    const onGameState = (gameState: Game) => {
+      console.log("Received initial game state:", gameState);
+      setGame(gameState);
+      const player = gameState.players.find((p) => p.id === playerId);
+      if (player) {
+        setCurrentPlayer(player);
+      }
+      setIsLoading(false);
+    };
+
+    const onGameUpdated = (updatedGame: Game) => {
+      console.log("Game updated:", updatedGame);
       setGame(updatedGame);
-      const currentPlayer = updatedGame.players.find((p) => p.id === playerId);
-      setPlayer(currentPlayer ?? null);
-      const isCurrentTurn =
-        updatedGame.players[updatedGame.currentPlayerIndex].id === playerId;
-      setIsMyTurn(isCurrentTurn);
-      setHasDrawnCard(isCurrentTurn && currentPlayer?.hand.length === 2);
-    });
+      const player = updatedGame.players.find((p) => p.id === playerId);
+      if (player) {
+        setCurrentPlayer(player);
+      }
 
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-
-    return () => {
-      if (socket) {
-        socket.off("connect", onConnect);
-        socket.off("disconnect", onDisconnect);
-        socket.off("joinGame");
-        socket.off("getGameData");
-        socket.off("game");
-        socket.off("gameError");
+      if (
+        updatedGame.players[updatedGame.currentPlayerIndex].id === playerId &&
+        player?.hand.length === 1
+      ) {
+        console.log(
+          "It's this player's turn and they have only one card, emitting startTurn"
+        );
+        socket.emit("startTurn", gameId);
       }
     };
-  }, [gameId, playerId]);
 
-  useEffect(() => {
-    if (isMyTurn && !hasDrawnCard) {
-      handleStartTurn();
-    }
-  }, [isMyTurn, hasDrawnCard]);
+    const onCardRevealed = ({
+      playerId,
+      card,
+    }: {
+      playerId: string;
+      card: Card;
+    }) => {
+      console.log("Card revealed event received:", { playerId, card });
+      setRevealedCard(card);
+      setTargetPlayer(playerId);
+      setIsPriestModalOpen(true);
+    };
 
-  const handleStartTurn = () => {
-    if (socket && game && isMyTurn && !hasDrawnCard) {
-      socket.emit("startTurn", { gameId, playerId });
+    const onChancellorAction = ({ playerId }: { playerId: string }) => {
+      if (playerId === currentPlayer?.id) {
+        setIsChancelierModalOpen(true);
+      }
+    };
+
+    const onError = (error: string) => {
+      console.error("Game error:", error);
+    };
+
+    socket.on("chancellorAction", onChancellorAction);
+    socket.on("gameState", onGameState);
+    socket.on("gameUpdated", onGameUpdated);
+    socket.on("cardRevealed", onCardRevealed);
+    socket.off("chancellorAction", onChancellorAction);
+    socket.on("error", onError);
+
+    return () => {
+      console.log("Cleaning up socket listeners");
+      socket.off("gameState", onGameState);
+      socket.off("gameUpdated", onGameUpdated);
+      socket.off("cardRevealed", onCardRevealed);
+      socket.off("error", onError);
+    };
+  }, [playerId, gameId]);
+
+  const handleCardClick = () => {
+    console.log("Card clicked");
+    if (game?.players[game.currentPlayerIndex].id === playerId) {
+      setIsPlayCardModalOpen(true);
     }
   };
 
-  const handlePlayCard = () => {
-    if (socket && game && player && selectedCard && isMyTurn && hasDrawnCard) {
-      socket.emit("playTurn", {
+  const handlePlayCard = (
+    cardId: string,
+    targetPlayerId?: string,
+    guessedCard?: CardType
+  ) => {
+    console.log("handlePlayCard called with:", {
+      cardId,
+      targetPlayerId,
+      guessedCard,
+    });
+    const selectedCard = currentPlayer?.hand.find((card) => card.id === cardId);
+    if (selectedCard) {
+      console.log("Emitting playCard event:", {
         gameId,
         playerId,
+        cardId: selectedCard.id,
         cardType: selectedCard.type,
-        targetPlayerId: needsTarget(selectedCard.type)
-          ? targetPlayer
-          : undefined,
-        guessedCard:
-          selectedCard.type === CardType.Garde ? guessedCard : undefined,
+        targetPlayerId,
+        guessedCard,
       });
-      setSelectedCard(null);
-      setTargetPlayer(null);
-      setGuessedCard(null);
+      socket.emit("playCard", {
+        gameId,
+        playerId,
+        cardId: selectedCard.id,
+        cardType: selectedCard.type,
+        targetPlayerId,
+        guessedCard,
+      });
+    } else {
+      console.error("Selected card not found in player's hand");
+    }
+  };
+  const handleFinishChancelierAction = (
+    keptCardIndex: number,
+    cardOrder: number[]
+  ) => {
+    if (game && currentPlayer) {
+      socket.emit("finishChancelierAction", {
+        gameId: game.id,
+        playerId: currentPlayer.id,
+        keptCardIndex,
+        cardOrder,
+      });
     }
   };
 
-  const renderPlayerHand = () => {
-    if (!player) return null;
-    return player.hand?.map((card, index) => (
-      <Button
-        key={index}
-        onClick={() => {
-          setSelectedCard(card);
-          if (!needsTarget(card.type)) {
-            setTargetPlayer(null);
-          }
-        }}
-        disabled={game?.players[game.currentPlayerIndex].id !== playerId}
-        className={`transition-colors ${
-          selectedCard === card
-            ? "bg-blue-600 hover:bg-blue-700 text-white"
-            : "bg-gray-200 hover:bg-gray-300 text-black"
-        }`}
-      >
-        {card.type} ({card.value})
-      </Button>
-    ));
-  };
-
-  const renderPlayerList = () => {
-    if (!game) return null;
-    return game.players.map((p) => (
-      <div key={p.id}>
-        {p.name} - Points: {p.points}
-        {p.isEliminated ? " (Éliminé)" : ""}
-        {p.isProtected ? " (Protégé)" : ""}
-        {game.players[game.currentPlayerIndex].id === p.id
-          ? " (Tour actuel)"
-          : ""}
-        <Button
-          onClick={() => setTargetPlayer(p.id)}
-          disabled={
-            !selectedCard ||
-            p.id === playerId ||
-            !needsTarget(selectedCard.type)
-          }
-        >
-          Cibler
-        </Button>
+  if (isLoading) {
+    return (
+      <div>
+        Loading... (PlayerId: {playerId}, GameId: {gameId})
       </div>
-    ));
-  };
+    );
+  }
 
-  const renderGuessCardButtons = () => {
-    if (selectedCard?.type !== CardType.Garde) return null;
-    return Object.values(CardType).map((cardType, index) => (
-      <Button
-        key={index}
-        onClick={() => setGuessedCard(cardType)}
-        disabled={selectedCard?.type !== CardType.Garde}
-        className={`transition-colors ${
-          guessedCard === cardType
-            ? "bg-green-600 hover:bg-green-700 text-white"
-            : "bg-gray-200 hover:bg-gray-300 text-black"
-        }`}
-      >
-        {cardType}
-      </Button>
-    ));
-  };
-
-  const needsTarget = (cardType: CardType): boolean => {
-    return [
-      CardType.Garde,
-      CardType.Pretre,
-      CardType.Baron,
-      CardType.Prince,
-      CardType.Roi,
-    ].includes(cardType);
-  };
-
-  if (!isConnected) return <div>Non connectés</div>;
-  if (!game || !player) {
-    return <div>Chargement du jeu...</div>;
+  if (!game || !currentPlayer) {
+    return <div>Error: Unable to load game data</div>;
   }
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">
-        Partie de Love Letter - {game.name}
-      </h1>
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold">Votre main :</h2>
-        <div className="flex space-x-2">{renderPlayerHand()}</div>
-      </div>
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold">Joueurs :</h2>
-        {renderPlayerList()}
-      </div>
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold">Actions :</h2>
-        {renderGuessCardButtons()}
+      <h1 className="text-2xl font-bold mb-4">Love Letter Game</h1>
+      {game.players.length === game.maxPlayers && (
+        <>
+          <div className="flex justify-between">
+            <div className="w-3/4">
+              <GameTable
+                players={game.players}
+                currentPlayerId={currentPlayer.id}
+                activePlayerId={game.players[game.currentPlayerIndex].id}
+                onCardClick={handleCardClick}
+              />
+            </div>
+            <div className="w-1/4">
+              <DiscardPile discardPile={game.discardPile} />
+            </div>
+          </div>
 
-        <Button
-          onClick={handlePlayCard}
-          disabled={
-            !selectedCard ||
-            game.players[game.currentPlayerIndex].id !== playerId ||
-            player.hand.length !== 2 ||
-            (needsTarget(selectedCard.type) && !targetPlayer) ||
-            (selectedCard.type === CardType.Garde && !guessedCard)
-          }
-          className="mt-4 bg-purple-600 hover:bg-purple-700 text-white"
-        >
-          Jouer la carte
-        </Button>
-      </div>
-      <div>
-        <h2 className="text-xl font-semibold">État du jeu :</h2>
-        <p>Cartes restantes dans le deck : {game.deck.length}</p>
-        <p>Carte cachée : {game.hiddenCard ? "Oui" : "Non"}</p>
-        <p>Manche actuelle : {game.currentRound}</p>
-        <p>
-          Gagnant de la manche :
-          {game.roundWinner ? game.roundWinner.name : "Pas encore déterminé"}
-        </p>
-        <p>
-          Gagnant du jeu :
-          {game.gameWinner ? game.gameWinner.name : "Pas encore déterminé"}
-        </p>
-      </div>
+          <PlayCardModal
+            isOpen={isPlayCardModalOpen}
+            onClose={() => {
+              console.log("Closing PlayCardModal");
+              setIsPlayCardModalOpen(false);
+            }}
+            currentPlayer={currentPlayer}
+            players={game.players}
+            onPlayCard={handlePlayCard}
+          />
+
+          <PriestEffectModal
+            isOpen={isPriestModalOpen}
+            onClose={() => {
+              console.log("Closing PriestEffectModal");
+              setIsPriestModalOpen(false);
+            }}
+            targetPlayer={targetPlayer}
+            revealedCard={revealedCard}
+          />
+          <ChancelierActionModal
+            isOpen={isChancelierModalOpen}
+            onClose={() => setIsChancelierModalOpen(false)}
+            chancellorDrawnCards={game?.chancellorDrawnCards || []}
+            onFinishAction={handleFinishChancelierAction}
+          />
+        </>
+      )}
     </div>
   );
 };
 
-export default GameComponent;
+export default GamePage;

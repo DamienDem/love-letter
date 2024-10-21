@@ -1,3 +1,4 @@
+//Component to join a game
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -18,7 +19,7 @@ import { v4 as uuidv4 } from "uuid";
 interface Game {
   id: string;
   name: string;
-  players: { id: string; name: string }[];
+  players: number;
   maxPlayers: number;
 }
 
@@ -29,7 +30,6 @@ export default function JoinGamePage() {
   const [playerName, setPlayerName] = useState("");
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
@@ -40,11 +40,7 @@ export default function JoinGamePage() {
     function onConnect() {
       setIsConnected(true);
       console.log("Socket connected");
-      socket.emit("getGames");
-      socket.on("gamesList", (games) => {
-        setIsLoading(false);
-        setGames(games);
-      });
+      socket.emit("getAvailableGames");
     }
 
     function onDisconnect() {
@@ -53,13 +49,16 @@ export default function JoinGamePage() {
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
+    socket.on("availableGames", (availableGames: Game[]) => {
+      setIsLoading(false);
+      setGames(availableGames);
+    });
 
     return () => {
       console.log("Cleaning up socket listeners");
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
-      socket.off("connect");
-      socket.off("gamesList");
+      socket.off("availableGames");
     };
   }, []);
 
@@ -109,10 +108,10 @@ export default function JoinGamePage() {
                 <div>
                   <h3 className="font-semibold">{game.name}</h3>
                   <p className="text-sm text-gray-500">
-                    {game.players.length}/{game.maxPlayers} joueurs
+                    {game.players}/{game.maxPlayers} joueurs
                   </p>
                 </div>
-                {game.players.length < game.maxPlayers && (
+                {game.players < game.maxPlayers && (
                   <Button onClick={() => handleJoinClick(game.id)}>
                     Rejoindre
                   </Button>

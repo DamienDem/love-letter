@@ -1,3 +1,4 @@
+//component to create a new game
 "use client";
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,13 +20,6 @@ interface FormData {
   creatorName: string;
 }
 
-interface GameData {
-  gameId: string;
-  name: string;
-  players: { id: string; name: string }[];
-  maxPlayers: number;
-}
-
 export default function CreateGameForm() {
   const router = useRouter();
   const [formData, setFormData] = useState<FormData>({
@@ -43,7 +37,6 @@ export default function CreateGameForm() {
     function onConnect() {
       setIsConnected(true);
       console.log("Socket connected");
-      socket.emit("getGames");
     }
 
     function onDisconnect() {
@@ -77,11 +70,11 @@ export default function CreateGameForm() {
     const gameId = uuidv4();
     const playerId = uuidv4();
 
-    const gameData: GameData = {
+    const gameData = {
       gameId: gameId,
-      name: formData.gameName,
       players: [{ id: playerId, name: formData.creatorName }],
       maxPlayers: parseInt(formData.numPlayers),
+      pointsToWin: 1, // Vous pouvez ajuster cela si nécessaire
     };
 
     console.log("Emitting createGame event:", gameData);

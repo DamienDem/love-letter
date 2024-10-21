@@ -1,5 +1,5 @@
 // lib/gameLogic.ts
-
+import { v4 as uuidv4 } from "uuid";
 export enum CardType {
   Garde = "Garde",
   Espionne = "Espionne",
@@ -14,9 +14,17 @@ export enum CardType {
 }
 
 export interface Card {
+  id: string;
   type: CardType;
   value: number;
 }
+
+export type PriestResult =
+  | {
+      game: Game;
+      targetCard: Card;
+    }
+  | Game;
 
 export interface Player {
   id: string;
@@ -47,16 +55,23 @@ export interface Game {
 
 const createDeck = (): Card[] => {
   const deck: Card[] = [];
-  deck.push(...Array(6).fill({ type: CardType.Garde, value: 1 }));
-  deck.push(...Array(2).fill({ type: CardType.Espionne, value: 0 }));
-  deck.push(...Array(2).fill({ type: CardType.Pretre, value: 2 }));
-  deck.push(...Array(2).fill({ type: CardType.Baron, value: 3 }));
-  deck.push(...Array(2).fill({ type: CardType.Servante, value: 4 }));
-  deck.push(...Array(2).fill({ type: CardType.Prince, value: 5 }));
-  deck.push(...Array(2).fill({ type: CardType.Chancelier, value: 6 }));
-  deck.push({ type: CardType.Roi, value: 7 });
-  deck.push({ type: CardType.Comtesse, value: 8 });
-  deck.push({ type: CardType.Princesse, value: 9 });
+  const addCards = (type: CardType, value: number, count: number) => {
+    for (let i = 0; i < count; i++) {
+      deck.push({ id: uuidv4(), type, value });
+    }
+  };
+
+  addCards(CardType.Garde, 1, 6);
+  addCards(CardType.Espionne, 0, 2);
+  addCards(CardType.Pretre, 2, 2);
+  addCards(CardType.Baron, 3, 2);
+  addCards(CardType.Servante, 4, 2);
+  addCards(CardType.Prince, 5, 2);
+  addCards(CardType.Chancelier, 6, 2);
+  // addCards(CardType.Roi, 7, 1);
+  // addCards(CardType.Comtesse, 8, 1);
+  // addCards(CardType.Princesse, 9, 1);
+
   return shuffleDeck(deck);
 };
 
@@ -194,32 +209,38 @@ export const checkEndOfRound = (game: Game): Game => {
 export const playGuard = (
   game: Game,
   playerId: string,
-  targetPlayerId: string,
-  guessedCard: CardType
+  targetPlayerId?: string,
+  guessedCard?: CardType
 ): Game => {
   const player = game.players.find((p) => p.id === playerId);
-  const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
-
-  if (!player || !targetPlayer) throw new Error("Joueur non trouvé");
-  if (player.isEliminated || targetPlayer.isEliminated)
-    throw new Error("Un des joueurs est déjà éliminé");
-  if (targetPlayer.isProtected)
-    throw new Error("Le joueur ciblé est protégé par la Servante");
+  if (!player) throw new Error("Joueur non trouvé");
+  if (player.isEliminated) throw new Error("Le joueur est déjà éliminé");
 
   const guardIndex = player.hand.findIndex(
     (card) => card.type === CardType.Garde
   );
   if (guardIndex === -1) throw new Error("Le joueur n'a pas de Garde en main");
 
+  if (targetPlayerId && guessedCard) {
+    const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
+    if (!targetPlayer) throw new Error("Joueur cible non trouvé");
+    if (targetPlayer.isEliminated)
+      throw new Error("Le joueur cible est déjà éliminé");
+    if (targetPlayer.isProtected)
+      throw new Error("Le joueur ciblé est protégé par la Servante");
+
+    if (
+      targetPlayer.hand[0].type === guessedCard &&
+      guessedCard !== CardType.Garde
+    ) {
+      targetPlayer.isEliminated = true;
+      // Ajouter la carte du joueur éliminé à la pile de défausse
+      game.discardPile.push(...targetPlayer.hand);
+      targetPlayer.hand = [];
+    }
+  }
   const playedCard = player.hand.splice(guardIndex, 1)[0];
   game.discardPile.push(playedCard);
-
-  if (
-    targetPlayer.hand[0].type === guessedCard &&
-    guessedCard !== CardType.Garde
-  ) {
-    targetPlayer.isEliminated = true;
-  }
 
   return game;
 };
@@ -245,17 +266,14 @@ export const playEspionne = (game: Game, playerId: string): Game => {
 
 export const playPretre = (
   game: Game,
-  playerId: string,
-  targetPlayerId: string
-): Game => {
+  playerId?: string,
+  targetPlayerId?: string
+): PriestResult => {
   const player = game.players.find((p) => p.id === playerId);
-  const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
+  let targetPlayer;
 
-  if (!player || !targetPlayer) throw new Error("Joueur non trouvé");
-  if (player.isEliminated || targetPlayer.isEliminated)
-    throw new Error("Un des joueurs est déjà éliminé");
-  if (targetPlayer.isProtected)
-    throw new Error("Le joueur ciblé est protégé par la Servante");
+  if (!player) throw new Error("Joueur non trouvé");
+  if (player.isEliminated) throw new Error("Un des joueurs est déjà éliminé");
 
   const pretreIndex = player.hand.findIndex(
     (card) => card.type === CardType.Pretre
@@ -265,37 +283,53 @@ export const playPretre = (
 
   const playedCard = player.hand.splice(pretreIndex, 1)[0];
   game.discardPile.push(playedCard);
+  if (targetPlayerId) {
+    targetPlayer = game.players.find((p) => p.id === targetPlayerId);
+    if (!targetPlayer) throw new Error("Joueur cible non trouvé");
+    if (targetPlayer.isEliminated)
+      throw new Error("Le joueur cible est déjà éliminé");
+    if (targetPlayer.isProtected)
+      throw new Error("Le joueur ciblé est protégé par la Servante");
+  }
 
-  return game;
+  const res = targetPlayer
+    ? { game: game, targetCard: targetPlayer.hand[0] }
+    : game;
+  return res;
 };
-
 export const playBaron = (
   game: Game,
   playerId: string,
-  targetPlayerId: string
+  targetPlayerId?: string
 ): Game => {
   const player = game.players.find((p) => p.id === playerId);
-  const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
-
-  if (!player || !targetPlayer) throw new Error("Joueur non trouvé");
-  if (player.isEliminated || targetPlayer.isEliminated)
-    throw new Error("Un des joueurs est déjà éliminé");
-  if (targetPlayer.isProtected)
-    throw new Error("Le joueur ciblé est protégé par la Servante");
+  if (!player) throw new Error("Joueur non trouvé");
+  if (player.isEliminated) throw new Error("Le joueur est déjà éliminé");
 
   const baronIndex = player.hand.findIndex(
     (card) => card.type === CardType.Baron
   );
   if (baronIndex === -1) throw new Error("Le joueur n'a pas de Baron en main");
 
+  // Si un joueur cible est fourni, on applique l'effet normal du Baron
+  if (targetPlayerId) {
+    const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
+    if (!targetPlayer) throw new Error("Joueur cible non trouvé");
+    if (targetPlayer.isEliminated)
+      throw new Error("Le joueur cible est déjà éliminé");
+    if (targetPlayer.isProtected)
+      throw new Error("Le joueur ciblé est protégé par la Servante");
+
+    if (player.hand[0].value < targetPlayer.hand[0].value) {
+      player.isEliminated = true;
+    } else if (player.hand[0].value > targetPlayer.hand[0].value) {
+      targetPlayer.isEliminated = true;
+      game.discardPile.push(targetPlayer.hand[0]);
+      targetPlayer.hand = [];
+    }
+  }
   const playedCard = player.hand.splice(baronIndex, 1)[0];
   game.discardPile.push(playedCard);
-
-  if (player.hand[0].value < targetPlayer.hand[0].value) {
-    player.isEliminated = true;
-  } else if (player.hand[0].value > targetPlayer.hand[0].value) {
-    targetPlayer.isEliminated = true;
-  }
 
   return game;
 };
@@ -323,16 +357,12 @@ export const playServante = (game: Game, playerId: string): Game => {
 export const playPrince = (
   game: Game,
   playerId: string,
-  targetPlayerId: string
+  targetPlayerId?: string
 ): Game => {
   const player = game.players.find((p) => p.id === playerId);
-  const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
 
-  if (!player || !targetPlayer) throw new Error("Joueur non trouvé");
-  if (player.isEliminated || targetPlayer.isEliminated)
-    throw new Error("Un des joueurs est déjà éliminé");
-  if (targetPlayer.isProtected)
-    throw new Error("Le joueur ciblé est protégé par la Servante");
+  if (!player) throw new Error("Joueur non trouvé");
+  if (player.isEliminated) throw new Error("Un des joueurs est déjà éliminé");
 
   const princeIndex = player.hand.findIndex(
     (card) => card.type === CardType.Prince
@@ -340,23 +370,32 @@ export const playPrince = (
   if (princeIndex === -1)
     throw new Error("Le joueur n'a pas de Prince en main");
 
-  const playedCard = player.hand.splice(princeIndex, 1)[0];
-  game.discardPile.push(playedCard);
-
-  const discardedCard = targetPlayer.hand.pop()!;
-  game.discardPile.push(discardedCard);
-
-  if (discardedCard.type === CardType.Princesse) {
-    targetPlayer.isEliminated = true;
-  } else {
-    if (game.deck.length > 0) {
-      const newCard = game.deck.pop()!;
-      targetPlayer.hand.push(newCard);
-    } else if (game.hiddenCard) {
-      targetPlayer.hand.push(game.hiddenCard);
-      game.hiddenCard = null;
+  if (targetPlayerId) {
+    const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
+    if (!targetPlayer) throw new Error("Joueur cible non trouvé");
+    if (targetPlayer.isEliminated)
+      throw new Error("Le joueur cible est déjà éliminé");
+    if (targetPlayer.isProtected)
+      throw new Error("Le joueur ciblé est protégé par la Servante");
+    const discardedCard = targetPlayer.hand.pop()!;
+    game.discardPile.push(discardedCard);
+    if (discardedCard.type === CardType.Princesse) {
+      targetPlayer.isEliminated = true;
+      game.discardPile.push(targetPlayer.hand[0]);
+      targetPlayer.hand = [];
+    } else {
+      if (game.deck.length > 0) {
+        const newCard = game.deck.pop()!;
+        targetPlayer.hand.push(newCard);
+      } else if (game.hiddenCard) {
+        targetPlayer.hand.push(game.hiddenCard);
+        game.hiddenCard = null;
+      }
     }
   }
+
+  const playedCard = player.hand.splice(princeIndex, 1)[0];
+  game.discardPile.push(playedCard);
 
   return game;
 };
@@ -373,9 +412,11 @@ export const playChancelier = (game: Game, playerId: string): Game => {
   if (chancelierIndex === -1)
     throw new Error("Le joueur n'a pas de Chancelier en main");
 
+  // Jouer la carte Chancelier
   const playedCard = player.hand.splice(chancelierIndex, 1)[0];
   game.discardPile.push(playedCard);
 
+  // Piocher 2 cartes (ou moins si le deck n'en a pas assez)
   const cardsToDrawCount = Math.min(2, game.deck.length);
   for (let i = 0; i < cardsToDrawCount; i++) {
     const drawnCard = game.deck.pop()!;
@@ -385,12 +426,7 @@ export const playChancelier = (game: Game, playerId: string): Game => {
   return game;
 };
 
-export const finishChancelierTurn = (
-  game: Game,
-  playerId: string,
-  keptCardIndex: number,
-  cardOrder: number[]
-): Game => {
+export const finishChancelierAction = (game: Game, playerId: string, keptCardIndex: number, cardOrder: number[]): Game => {
   const player = game.players.find((p) => p.id === playerId);
 
   if (!player) throw new Error("Joueur non trouvé");
@@ -417,36 +453,37 @@ export const finishChancelierTurn = (
   // Vider les cartes piochées par le Chancelier
   game.chancellorDrawnCards = [];
 
-  // Passer au joueur suivant
-  game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
-
-  return startTurn(game);
+  return game;
 };
 
 export const playRoi = (
   game: Game,
   playerId: string,
-  targetPlayerId: string
+  targetPlayerId?: string
 ): Game => {
   const player = game.players.find((p) => p.id === playerId);
-  const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
 
-  if (!player || !targetPlayer) throw new Error("Joueur non trouvé");
-  if (player.isEliminated || targetPlayer.isEliminated)
-    throw new Error("Un des joueurs est déjà éliminé");
-  if (targetPlayer.isProtected)
-    throw new Error("Le joueur ciblé est protégé par la Servante");
+  if (!player) throw new Error("Joueur non trouvé");
+  if (player.isEliminated) throw new Error("Un des joueurs est déjà éliminé");
 
   const roiIndex = player.hand.findIndex((card) => card.type === CardType.Roi);
   if (roiIndex === -1) throw new Error("Le joueur n'a pas de Roi en main");
 
+  if (targetPlayerId) {
+    const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
+    if (!targetPlayer) throw new Error("Joueur cible non trouvé");
+    if (targetPlayer.isEliminated)
+      throw new Error("Le joueur cible est déjà éliminé");
+    if (targetPlayer.isProtected)
+      throw new Error("Le joueur ciblé est protégé par la Servante");
+    // Échanger les mains
+    const tempHand = player.hand;
+    player.hand = targetPlayer.hand;
+    targetPlayer.hand = tempHand;
+  }
+
   const playedCard = player.hand.splice(roiIndex, 1)[0];
   game.discardPile.push(playedCard);
-
-  // Échanger les mains
-  const tempHand = player.hand;
-  player.hand = targetPlayer.hand;
-  targetPlayer.hand = tempHand;
 
   return game;
 };
@@ -503,7 +540,7 @@ export const playCard = (
   cardType: CardType,
   targetPlayerId?: string,
   guessedCard?: CardType
-): Game | { game: Game; targetCard?: Card } => {
+): Game | PriestResult => {
   if (game.players[game.currentPlayerIndex].id !== playerId) {
     throw new Error("Ce n'est pas le tour de ce joueur");
   }
@@ -516,45 +553,30 @@ export const playCard = (
     );
   }
 
-  let result: Game;
+  let result: Game | PriestResult;
   switch (cardType) {
     case CardType.Garde:
-      if (!targetPlayerId || !guessedCard) {
-        throw new Error("Le Garde nécessite une cible et une carte devinée");
-      }
       result = playGuard(game, playerId, targetPlayerId, guessedCard);
       break;
     case CardType.Espionne:
       result = playEspionne(game, playerId);
       break;
     case CardType.Pretre:
-      if (!targetPlayerId) {
-        throw new Error("Le Prêtre nécessite une cible");
-      }
       result = playPretre(game, playerId, targetPlayerId);
       break;
     case CardType.Baron:
-      if (!targetPlayerId) {
-        throw new Error("Le Baron nécessite une cible");
-      }
       result = playBaron(game, playerId, targetPlayerId);
       break;
     case CardType.Servante:
       result = playServante(game, playerId);
       break;
     case CardType.Prince:
-      if (!targetPlayerId) {
-        throw new Error("Le Prince nécessite une cible");
-      }
       result = playPrince(game, playerId, targetPlayerId);
       break;
     case CardType.Chancelier:
       result = playChancelier(game, playerId);
       break;
     case CardType.Roi:
-      if (!targetPlayerId) {
-        throw new Error("Le Roi nécessite une cible");
-      }
       result = playRoi(game, playerId, targetPlayerId);
       break;
     case CardType.Comtesse:
@@ -567,11 +589,15 @@ export const playCard = (
       throw new Error("Type de carte non reconnu");
   }
 
-  if (cardType !== CardType.Chancelier && !player.isEliminated) {
-    result.currentPlayerIndex =
-      (game.currentPlayerIndex + 1) % game.players.length;
+  if (!player.isEliminated) {
+    if ("targetCard" in result) {
+      result.game.currentPlayerIndex =
+        (game.currentPlayerIndex + 1) % game.players.length;
+    } else {
+      result.currentPlayerIndex =
+        (game.currentPlayerIndex + 1) % game.players.length;
+    }
   }
-
   return result;
 };
 
