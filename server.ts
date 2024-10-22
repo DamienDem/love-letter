@@ -3,7 +3,9 @@ import { createServer } from "node:http";
 import next from "next";
 import { Server } from "socket.io";
 import {
+  CardType,
   checkEndOfRound,
+  finishTurn,
   Game,
   initializeGame,
   playCard,
@@ -42,6 +44,7 @@ app.prepare().then(() => {
           hiddenCard: null,
           chancellorDrawnCards: [],
           currentRound: 1,
+          isChancellorAction: false,
         };
         games.push(game);
         socket.join(gameId);
@@ -96,7 +99,7 @@ app.prepare().then(() => {
         ),
         activePlayers: game.players.filter((p) => !p.isEliminated),
       });
-    
+
       if (game.gameWinner) {
         console.log("Game ended");
         io.to(gameId).emit("gameEnded", { winner: game.gameWinner });
@@ -112,79 +115,114 @@ app.prepare().then(() => {
         let game = games[gameIndex];
         const currentPlayer = game.players[game.currentPlayerIndex];
         currentPlayer.isProtected = false;
-  
+
         // Vérifier si le joueur actuel n'a qu'une seule carte en main
         if (currentPlayer.hand.length === 1) {
           console.log("Player has only one card, starting turn");
           game = startTurn(game);
           game = checkEndOfRound(game);
           games[gameIndex] = game;
-  
+
           console.log("Emitting gameUpdated after startTurn");
           io.to(gameId).emit("gameUpdated", game);
-  
+
           if (game.roundWinner) {
             handleRoundEnd(game, gameId, gameIndex);
           }
         } else {
-          console.log("Player already has more than one card, not starting turn");
+          console.log(
+            "Player already has more than one card, not starting turn"
+          );
         }
       } else {
         console.log("Game not found:", gameId);
         socket.emit("error", "Game not found");
       }
     });
-  
 
     socket.on(
       "playCard",
-      ({ gameId, playerId, cardType, targetPlayerId, guessedCard }) => {
+      async ({ gameId, playerId, cardType, targetPlayerId, guessedCard, chancellorAction }) => {
         const gameIndex = games.findIndex((g) => g.id === gameId);
         if (gameIndex !== -1) {
           let game = games[gameIndex];
           try {
-            const result = playCard(
-              game,
-              playerId,
+            console.log("Processing playCard:", {
               cardType,
-              targetPlayerId,
-              guessedCard
-            );
-
-            if ('targetCard' in result) {
-              game = result.game;
-              console.log(`Card revealed: ${JSON.stringify(result.targetCard)} for player: ${targetPlayerId}`);
-              io.to(gameId).emit("cardRevealed", {
-                playerId: targetPlayerId,
-                card: result.targetCard,
-              });
-            } else {
-              game = result;
-            }
-
-            game = checkEndOfRound(game);
-            games[gameIndex] = game;
-
-            io.to(gameId).emit("gameUpdated", game);
-
-            if (game.roundWinner) {
-              io.to(gameId).emit("roundEnded", {
-                winner: game.roundWinner,
-                espionneWinner: game.players.find(
-                  (p) => game.playedEspionnes.includes(p.id) && !p.isEliminated
-                ),
-                activePlayers: game.players.filter((p) => !p.isEliminated),
-              });
-
-              if (game.gameWinner) {
-                io.to(gameId).emit("gameEnded", { winner: game.gameWinner });
-                // Supprimer le jeu terminé de la liste des jeux
-                games.splice(gameIndex, 1);
-              } else {
-                io.to(gameId).emit("newRoundStarted", game);
+              playerId,
+              hasChancellorAction: !!chancellorAction,
+              isChancellorAction: game.isChancellorAction,
+              currentPlayerIndex: game.currentPlayerIndex,
+              currentPlayerId: game.players[game.currentPlayerIndex].id
+            });
+    
+            // Action du Chancelier en deux phases
+            if (cardType === CardType.Chancelier) {
+              // Première phase : jouer la carte
+              if (!chancellorAction) {
+                console.log("Phase initiale du Chancelier");
+                const result = playCard(
+                  game,
+                  playerId,
+                  cardType,
+                  targetPlayerId,
+                  guessedCard
+                );
+                game = result as Game;
+                
+                // Émettre l'événement pour ouvrir le modal
+                io.to(gameId).emit("chancellorAction", { playerId });
+              } 
+              // Deuxième phase : choisir les cartes
+              else {
+                console.log("Phase finale du Chancelier");
+                const result = playCard(
+                  game,
+                  playerId,
+                  cardType,
+                  targetPlayerId,
+                  guessedCard,
+                  chancellorAction
+                );
+                game = result as Game;
+                
+                // Seulement maintenant on peut finir le tour
+                game = finishTurn(game);
+                game = checkEndOfRound(game);
               }
+            } 
+            // Autres cartes
+            else {
+              const result = playCard(
+                game,
+                playerId,
+                cardType,
+                targetPlayerId,
+                guessedCard
+              );
+    
+              if ("targetCard" in result) {
+                game = result.game;
+                io.to(gameId).emit("cardRevealed", {
+                  playerId: targetPlayerId,
+                  card: result.targetCard,
+                });
+              } else {
+                game = result;
+              }
+    
+              game = finishTurn(game);
+              game = checkEndOfRound(game);
+            }
+    
+            games[gameIndex] = game;
+            io.to(gameId).emit("gameUpdated", game);
+    
+            if (game.roundWinner) {
+              handleRoundEnd(game, gameId, gameIndex);
             }
           } catch (error) {
+            console.error("Error in playCard:", error);
             if (error instanceof Error) {
               socket.emit("error", error.message);
             } else {

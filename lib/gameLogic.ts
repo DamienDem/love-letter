@@ -51,6 +51,7 @@ export interface Game {
   chancellorDrawnCards: Card[];
   currentRound: number;
   pointsToWin: number;
+  isChancellorAction: boolean;
 }
 
 const createDeck = (): Card[] => {
@@ -68,9 +69,9 @@ const createDeck = (): Card[] => {
   addCards(CardType.Servante, 4, 2);
   addCards(CardType.Prince, 5, 2);
   addCards(CardType.Chancelier, 6, 2);
-  // addCards(CardType.Roi, 7, 1);
-  // addCards(CardType.Comtesse, 8, 1);
-  // addCards(CardType.Princesse, 9, 1);
+  addCards(CardType.Roi, 7, 1);
+  addCards(CardType.Comtesse, 8, 1);
+  addCards(CardType.Princesse, 9, 1);
 
   return shuffleDeck(deck);
 };
@@ -111,6 +112,7 @@ export const initializeGame = (gameData: {
     chancellorDrawnCards: [],
     currentRound: 1,
     pointsToWin: gameData.pointsToWin,
+    isChancellorAction: false,
   };
 };
 
@@ -400,58 +402,152 @@ export const playPrince = (
   return game;
 };
 
-export const playChancelier = (game: Game, playerId: string): Game => {
+export const playChancelier = (
+  game: Game,
+  playerId: string,
+  chancellorAction?: {
+    keptCardIndex: number;
+    cardOrder: number[];
+  }
+): Game => {
   const player = game.players.find((p) => p.id === playerId);
 
   if (!player) throw new Error("Joueur non trouvé");
   if (player.isEliminated) throw new Error("Le joueur est déjà éliminé");
 
-  const chancelierIndex = player.hand.findIndex(
-    (card) => card.type === CardType.Chancelier
-  );
-  if (chancelierIndex === -1)
-    throw new Error("Le joueur n'a pas de Chancelier en main");
+  // Phase initiale
+  if (!chancellorAction) {
+    if (game.players[game.currentPlayerIndex].id !== playerId) {
+      throw new Error("Ce n'est pas le tour de ce joueur");
+    }
 
-  // Jouer la carte Chancelier
-  const playedCard = player.hand.splice(chancelierIndex, 1)[0];
-  game.discardPile.push(playedCard);
+    const chancelierIndex = player.hand.findIndex(
+      (card) => card.type === CardType.Chancelier
+    );
 
-  // Piocher 2 cartes (ou moins si le deck n'en a pas assez)
-  const cardsToDrawCount = Math.min(2, game.deck.length);
-  for (let i = 0; i < cardsToDrawCount; i++) {
-    const drawnCard = game.deck.pop()!;
-    game.chancellorDrawnCards.push(drawnCard);
+    if (chancelierIndex === -1)
+      throw new Error("Le joueur n'a pas de Chancelier en main");
+
+    // Garder la carte qui était en main (après avoir retiré le Chancelier)
+    const originalCard = player.hand.find(
+      (_, index) => index !== chancelierIndex
+    );
+
+    // Jouer la carte Chancelier
+    const playedCard = player.hand.splice(chancelierIndex, 1)[0];
+    game.discardPile.push(playedCard);
+
+    // Piocher 2 nouvelles cartes
+    const cardsToDrawCount = Math.min(2, game.deck.length);
+    for (let i = 0; i < cardsToDrawCount; i++) {
+      const drawnCard = game.deck.pop()!;
+      game.chancellorDrawnCards.push(drawnCard);
+    }
+
+    // Ajouter la carte originale aux cartes disponibles pour le choix
+    if (originalCard) {
+      game.chancellorDrawnCards.push(originalCard);
+      // Vider la main du joueur car toutes les cartes sont maintenant dans chancellorDrawnCards
+      player.hand = [];
+    }
+
+    game.isChancellorAction = true;
+    console.log(
+      "Phase initiale - cartes disponibles:",
+      game.chancellorDrawnCards
+    );
+    return game;
   }
+
+  // Phase finale
+  console.log("Phase finale - État actuel:", {
+    isChancellorAction: game.isChancellorAction,
+    cardsAvailable: game.chancellorDrawnCards,
+    actionParams: chancellorAction,
+  });
+
+  if (!game.isChancellorAction) {
+    throw new Error("Aucune action de Chancelier n'est en cours");
+  }
+
+  const { keptCardIndex, cardOrder } = chancellorAction;
+
+  if (game.chancellorDrawnCards.length === 0) {
+    throw new Error("Aucune carte n'est disponible pour le choix");
+  }
+
+  // Vérifications de validité
+  if (keptCardIndex < 0 || keptCardIndex >= game.chancellorDrawnCards.length) {
+    throw new Error(
+      `Index de carte invalide: ${keptCardIndex} (max: ${
+        game.chancellorDrawnCards.length - 1
+      })`
+    );
+  }
+
+  // Garder la carte choisie
+  const keptCard = game.chancellorDrawnCards[keptCardIndex];
+  player.hand = [keptCard];
+
+  // Créer la liste des cartes restantes (sans la carte gardée)
+  const remainingCards = game.chancellorDrawnCards.filter(
+    (_, index) => index !== keptCardIndex
+  );
+
+  // Vérifier que les index dans cardOrder sont valides pour remainingCards
+  if (cardOrder.some((index) => index < 0 || index >= remainingCards.length)) {
+    const invalidIndex = cardOrder.find(
+      (index) => index < 0 || index >= remainingCards.length
+    );
+    throw new Error(
+      `Index invalide dans cardOrder: ${invalidIndex} (max: ${
+        remainingCards.length - 1
+      })`
+    );
+  }
+
+  console.log("Replacement des cartes:", {
+    remainingCards,
+    cardOrder,
+    keptCard,
+  });
+
+  // Remettre les cartes dans le deck dans l'ordre spécifié
+  for (const index of cardOrder) {
+    if (index >= remainingCards.length) {
+      throw new Error(
+        `Index invalide pour l'ordre des cartes: ${index} (max: ${
+          remainingCards.length - 1
+        })`
+      );
+    }
+    game.deck.unshift(remainingCards[index]);
+  }
+
+  // Nettoyage
+  game.chancellorDrawnCards = [];
+  game.isChancellorAction = false;
+
+  console.log("Fin de l'action du Chancelier:", {
+    playerHand: player.hand,
+    deckTop: game.deck.slice(0, 2),
+  });
 
   return game;
 };
 
-export const finishChancelierAction = (game: Game, playerId: string, keptCardIndex: number, cardOrder: number[]): Game => {
-  const player = game.players.find((p) => p.id === playerId);
-
-  if (!player) throw new Error("Joueur non trouvé");
-  if (player.isEliminated) throw new Error("Le joueur est déjà éliminé");
-  if (game.chancellorDrawnCards.length === 0)
-    throw new Error("Aucune carte n'a été piochée par le Chancelier");
-  if (keptCardIndex < 0 || keptCardIndex >= game.chancellorDrawnCards.length)
-    throw new Error("Index de la carte gardée invalide");
-  if (cardOrder.length !== game.chancellorDrawnCards.length - 1)
-    throw new Error("L'ordre des cartes à remettre sous le deck est invalide");
-
-  // Garder la carte choisie
-  const keptCard = game.chancellorDrawnCards[keptCardIndex];
-  player.hand.push(keptCard);
-
-  // Remettre les autres cartes sous le deck dans l'ordre spécifié
-  const cardsToReturn = game.chancellorDrawnCards.filter(
-    (_, index) => index !== keptCardIndex
-  );
-  for (const index of cardOrder) {
-    game.deck.unshift(cardsToReturn[index]);
+// Modifier la fonction finishTurn pour respecter l'action du Chancelier
+export const finishTurn = (game: Game): Game => {
+  // Ne pas finir le tour si une action de Chancelier est en cours
+  if (game.isChancellorAction) {
+    return game;
   }
 
-  // Vider les cartes piochées par le Chancelier
-  game.chancellorDrawnCards = [];
+  const currentPlayer = game.players[game.currentPlayerIndex];
+  if (!currentPlayer.isEliminated) {
+    game.currentPlayerIndex =
+      (game.currentPlayerIndex + 1) % game.players.length;
+  }
 
   return game;
 };
@@ -469,6 +565,9 @@ export const playRoi = (
   const roiIndex = player.hand.findIndex((card) => card.type === CardType.Roi);
   if (roiIndex === -1) throw new Error("Le joueur n'a pas de Roi en main");
 
+  const playedCard = player.hand.splice(roiIndex, 1)[0];
+  game.discardPile.push(playedCard);
+
   if (targetPlayerId) {
     const targetPlayer = game.players.find((p) => p.id === targetPlayerId);
     if (!targetPlayer) throw new Error("Joueur cible non trouvé");
@@ -481,9 +580,6 @@ export const playRoi = (
     player.hand = targetPlayer.hand;
     targetPlayer.hand = tempHand;
   }
-
-  const playedCard = player.hand.splice(roiIndex, 1)[0];
-  game.discardPile.push(playedCard);
 
   return game;
 };
@@ -539,7 +635,11 @@ export const playCard = (
   playerId: string,
   cardType: CardType,
   targetPlayerId?: string,
-  guessedCard?: CardType
+  guessedCard?: CardType,
+  chancellorAction?: {
+    keptCardIndex: number;
+    cardOrder: number[];
+  }
 ): Game | PriestResult => {
   if (game.players[game.currentPlayerIndex].id !== playerId) {
     throw new Error("Ce n'est pas le tour de ce joueur");
@@ -547,6 +647,11 @@ export const playCard = (
 
   const player = game.players[game.currentPlayerIndex];
 
+  if (!game.isChancellorAction) {
+    if (game.players[game.currentPlayerIndex].id !== playerId) {
+      throw new Error("Ce n'est pas le tour de ce joueur");
+    }
+  }
   if (mustPlayComtesse(player.hand) && cardType !== CardType.Comtesse) {
     throw new Error(
       "Vous devez jouer la Comtesse lorsque vous avez le Roi ou le Prince en main"
@@ -574,7 +679,7 @@ export const playCard = (
       result = playPrince(game, playerId, targetPlayerId);
       break;
     case CardType.Chancelier:
-      result = playChancelier(game, playerId);
+      result = playChancelier(game, playerId, chancellorAction);
       break;
     case CardType.Roi:
       result = playRoi(game, playerId, targetPlayerId);
@@ -589,15 +694,6 @@ export const playCard = (
       throw new Error("Type de carte non reconnu");
   }
 
-  if (!player.isEliminated) {
-    if ("targetCard" in result) {
-      result.game.currentPlayerIndex =
-        (game.currentPlayerIndex + 1) % game.players.length;
-    } else {
-      result.currentPlayerIndex =
-        (game.currentPlayerIndex + 1) % game.players.length;
-    }
-  }
   return result;
 };
 

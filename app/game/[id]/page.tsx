@@ -58,32 +58,50 @@ const GamePage: React.FC = () => {
         setCurrentPlayer(player);
       }
 
+      // Vérifier si nous devons ouvrir le modal du Chancelier
       if (
+        updatedGame.isChancellorAction &&
+        updatedGame.chancellorDrawnCards.length > 0 &&
+        updatedGame.players[updatedGame.currentPlayerIndex].id === playerId
+      ) {
+        console.log("Opening chancellor modal with cards:", updatedGame.chancellorDrawnCards);
+        setIsChancelierModalOpen(true);
+      }
+
+      // Vérifier le tour seulement si ce n'est pas une action de Chancelier en cours
+      if (
+        !updatedGame.isChancellorAction &&
         updatedGame.players[updatedGame.currentPlayerIndex].id === playerId &&
         player?.hand.length === 1
       ) {
-        console.log(
-          "It's this player's turn and they have only one card, emitting startTurn"
-        );
+        console.log("Starting turn for player");
         socket.emit("startTurn", gameId);
       }
     };
 
     const onCardRevealed = ({
-      playerId,
+      playerId: targetPlayerId,
       card,
     }: {
       playerId: string;
       card: Card;
     }) => {
-      console.log("Card revealed event received:", { playerId, card });
+      console.log("Card revealed event received:", { targetPlayerId, card });
       setRevealedCard(card);
-      setTargetPlayer(playerId);
+      setTargetPlayer(targetPlayerId);
       setIsPriestModalOpen(true);
     };
 
-    const onChancellorAction = ({ playerId }: { playerId: string }) => {
-      if (playerId === currentPlayer?.id) {
+    const onChancellorAction = ({
+      playerId: chancellorPlayerId,
+    }: {
+      playerId: string;
+    }) => {
+      console.log("Chancellor action received:", {
+        chancellorPlayerId,
+        currentPlayerId: playerId,
+      });
+      if (chancellorPlayerId === playerId) {
         setIsChancelierModalOpen(true);
       }
     };
@@ -92,18 +110,17 @@ const GamePage: React.FC = () => {
       console.error("Game error:", error);
     };
 
-    socket.on("chancellorAction", onChancellorAction);
     socket.on("gameState", onGameState);
     socket.on("gameUpdated", onGameUpdated);
     socket.on("cardRevealed", onCardRevealed);
-    socket.off("chancellorAction", onChancellorAction);
+    socket.on("chancellorAction", onChancellorAction);
     socket.on("error", onError);
 
     return () => {
-      console.log("Cleaning up socket listeners");
       socket.off("gameState", onGameState);
       socket.off("gameUpdated", onGameUpdated);
       socket.off("cardRevealed", onCardRevealed);
+      socket.off("chancellorAction", onChancellorAction);
       socket.off("error", onError);
     };
   }, [playerId, gameId]);
@@ -125,20 +142,20 @@ const GamePage: React.FC = () => {
       targetPlayerId,
       guessedCard,
     });
+
     const selectedCard = currentPlayer?.hand.find((card) => card.id === cardId);
     if (selectedCard) {
       console.log("Emitting playCard event:", {
         gameId,
         playerId,
-        cardId: selectedCard.id,
         cardType: selectedCard.type,
         targetPlayerId,
         guessedCard,
       });
+
       socket.emit("playCard", {
         gameId,
         playerId,
-        cardId: selectedCard.id,
         cardType: selectedCard.type,
         targetPlayerId,
         guessedCard,
@@ -147,18 +164,28 @@ const GamePage: React.FC = () => {
       console.error("Selected card not found in player's hand");
     }
   };
-  const handleFinishChancelierAction = (
+
+  const handleChancelierAction = (
     keptCardIndex: number,
     cardOrder: number[]
   ) => {
+    console.log("Handling chancellor action:", {
+      keptCardIndex,
+      cardOrder,
+    });
+
     if (game && currentPlayer) {
-      socket.emit("finishChancelierAction", {
-        gameId: game.id,
-        playerId: currentPlayer.id,
-        keptCardIndex,
-        cardOrder,
+      socket.emit("playCard", {
+        gameId,
+        playerId,
+        cardType: CardType.Chancelier,
+        chancellorAction: {
+          keptCardIndex,
+          cardOrder,
+        },
       });
     }
+    setIsChancelierModalOpen(false);
   };
 
   if (isLoading) {
@@ -212,11 +239,15 @@ const GamePage: React.FC = () => {
             targetPlayer={targetPlayer}
             revealedCard={revealedCard}
           />
+
           <ChancelierActionModal
             isOpen={isChancelierModalOpen}
-            onClose={() => setIsChancelierModalOpen(false)}
-            chancellorDrawnCards={game?.chancellorDrawnCards || []}
-            onFinishAction={handleFinishChancelierAction}
+            onClose={() => {
+              console.log("Closing ChancelierActionModal");
+              setIsChancelierModalOpen(false);
+            }}
+            chancellorDrawnCards={game.chancellorDrawnCards}
+            onFinishAction={handleChancelierAction}
           />
         </>
       )}
