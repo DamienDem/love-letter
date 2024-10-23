@@ -8,6 +8,7 @@ import PlayCardModal from "@/components/PlayCardModal";
 import DiscardPile from "@/components/DiscardPile";
 import PriestEffectModal from "@/components/PriestEffectModal";
 import ChancelierActionModal from "@/components/ChancelierActionModal";
+import PlayerActions from "@/components/PlayerActions";
 
 const GamePage: React.FC = () => {
   const searchParams = useSearchParams();
@@ -23,6 +24,8 @@ const GamePage: React.FC = () => {
   const [revealedCard, setRevealedCard] = useState<Card | null>(null);
   const [targetPlayer, setTargetPlayer] = useState<string>("");
   const [isChancelierModalOpen, setIsChancelierModalOpen] = useState(false);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [priestPlayerId, setPriestPlayerId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!playerId || !gameId) {
@@ -64,7 +67,10 @@ const GamePage: React.FC = () => {
         updatedGame.chancellorDrawnCards.length > 0 &&
         updatedGame.players[updatedGame.currentPlayerIndex].id === playerId
       ) {
-        console.log("Opening chancellor modal with cards:", updatedGame.chancellorDrawnCards);
+        console.log(
+          "Opening chancellor modal with cards:",
+          updatedGame.chancellorDrawnCards
+        );
         setIsChancelierModalOpen(true);
       }
 
@@ -82,14 +88,25 @@ const GamePage: React.FC = () => {
     const onCardRevealed = ({
       playerId: targetPlayerId,
       card,
+      sourcePlayerId,
     }: {
       playerId: string;
       card: Card;
+      sourcePlayerId: string; // ID du joueur qui a joué le Prêtre
     }) => {
-      console.log("Card revealed event received:", { targetPlayerId, card });
-      setRevealedCard(card);
-      setTargetPlayer(targetPlayerId);
-      setIsPriestModalOpen(true);
+      console.log("Card revealed event received:", {
+        targetPlayerId,
+        card,
+        sourcePlayerId,
+      });
+
+      // N'afficher la modale que si c'est le joueur qui a joué le Prêtre
+      if (sourcePlayerId === playerId) {
+        setRevealedCard(card);
+        setTargetPlayer(targetPlayerId);
+        setPriestPlayerId(sourcePlayerId);
+        setIsPriestModalOpen(true);
+      }
     };
 
     const onChancellorAction = ({
@@ -125,9 +142,10 @@ const GamePage: React.FC = () => {
     };
   }, [playerId, gameId]);
 
-  const handleCardClick = () => {
-    console.log("Card clicked");
+  const handleCardClick = (cardId: string) => {
+    console.log("Card clicked:", cardId);
     if (game?.players[game.currentPlayerIndex].id === playerId) {
+      setSelectedCardId(cardId);
       setIsPlayCardModalOpen(true);
     }
   };
@@ -163,26 +181,23 @@ const GamePage: React.FC = () => {
     } else {
       console.error("Selected card not found in player's hand");
     }
+    setSelectedCardId(null);
   };
 
   const handleChancelierAction = (
-    keptCardIndex: number,
-    cardOrder: number[]
+    action: {
+      selectedCardIndex: number;
+      topCardIndex?: number;
+    }
   ) => {
-    console.log("Handling chancellor action:", {
-      keptCardIndex,
-      cardOrder,
-    });
-
+    console.log("Handling chancellor action:", action);
+  
     if (game && currentPlayer) {
       socket.emit("playCard", {
         gameId,
         playerId,
         cardType: CardType.Chancelier,
-        chancellorAction: {
-          keptCardIndex,
-          cardOrder,
-        },
+        chancellorAction: action
       });
     }
     setIsChancelierModalOpen(false);
@@ -214,8 +229,12 @@ const GamePage: React.FC = () => {
                 onCardClick={handleCardClick}
               />
             </div>
-            <div className="w-1/4">
+            <div className="w-1/4 space-y-4">
               <DiscardPile discardPile={game.discardPile} />
+              <PlayerActions 
+                actions={game.actions || []} 
+                players={game.players}
+              />
             </div>
           </div>
 
@@ -224,21 +243,26 @@ const GamePage: React.FC = () => {
             onClose={() => {
               console.log("Closing PlayCardModal");
               setIsPlayCardModalOpen(false);
+              setSelectedCardId(null);
             }}
             currentPlayer={currentPlayer}
             players={game.players}
             onPlayCard={handlePlayCard}
+            initialSelectedCardId={selectedCardId}
           />
 
-          <PriestEffectModal
-            isOpen={isPriestModalOpen}
-            onClose={() => {
-              console.log("Closing PriestEffectModal");
-              setIsPriestModalOpen(false);
-            }}
-            targetPlayer={targetPlayer}
-            revealedCard={revealedCard}
-          />
+          {priestPlayerId === playerId && (
+            <PriestEffectModal
+              isOpen={isPriestModalOpen}
+              onClose={() => {
+                console.log("Closing PriestEffectModal");
+                setIsPriestModalOpen(false);
+                setPriestPlayerId(null);
+              }}
+              targetPlayer={targetPlayer}
+              revealedCard={revealedCard}
+            />
+          )}
 
           <ChancelierActionModal
             isOpen={isChancelierModalOpen}

@@ -74,7 +74,7 @@ export default function CreateGameForm() {
       gameId: gameId,
       players: [{ id: playerId, name: formData.creatorName }],
       maxPlayers: parseInt(formData.numPlayers),
-      pointsToWin: 1, // Vous pouvez ajuster cela si nécessaire
+      pointsToWin: 3, // Vous pouvez ajuster cela si nécessaire
     };
 
     console.log("Emitting createGame event:", gameData);

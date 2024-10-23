@@ -27,6 +27,7 @@ interface PlayCardModalProps {
     targetPlayerId?: string,
     guessedCard?: CardType
   ) => void;
+  initialSelectedCardId: string | null;
 }
 
 const cardsRequiringTarget = [
@@ -43,10 +44,17 @@ const PlayCardModal: React.FC<PlayCardModalProps> = ({
   currentPlayer,
   players,
   onPlayCard,
+  initialSelectedCardId
 }) => {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [guessedCard, setGuessedCard] = useState<CardType | null>(null);
+
+  useEffect(() => {
+    if (isOpen && initialSelectedCardId) {
+      setSelectedCardId(initialSelectedCardId);
+    }
+  }, [isOpen, initialSelectedCardId]);
 
   const selectedCard = currentPlayer.hand.find(
     (card) => card.id === selectedCardId
@@ -60,13 +68,10 @@ const PlayCardModal: React.FC<PlayCardModalProps> = ({
   const canTargetPlayers = targetablePlayers.length > 0;
 
   useEffect(() => {
-    // Reset states when the modal is opened
-    if (isOpen) {
-      setSelectedCardId(null);
-      setSelectedTarget(null);
-      setGuessedCard(null);
-    }
-  }, [isOpen]);
+    // Reset target and guessed card when card selection changes
+    setSelectedTarget(null);
+    setGuessedCard(null);
+  }, [selectedCardId]);
 
   const handlePlayCard = () => {
     if (selectedCardId) {
@@ -87,27 +92,22 @@ const PlayCardModal: React.FC<PlayCardModalProps> = ({
     }
   };
 
+  // Automatically play card if no target is required
+  useEffect(() => {
+    if (selectedCardId && !requiresTarget) {
+      handlePlayCard();
+    }
+  }, [selectedCardId]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Play a Card</DialogTitle>
+          <DialogTitle>
+            {requiresTarget ? "Choose a target" : "Playing card..."}
+          </DialogTitle>
         </DialogHeader>
-        <Select
-          onValueChange={setSelectedCardId}
-          value={selectedCardId ?? undefined}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select a card to play" />
-          </SelectTrigger>
-          <SelectContent>
-            {currentPlayer.hand.map((card) => (
-              <SelectItem key={card.id} value={card.id}>
-                {card.type} (Value: {card.value})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        
         {requiresTarget && canTargetPlayers && (
           <Select
             onValueChange={setSelectedTarget}
@@ -125,6 +125,7 @@ const PlayCardModal: React.FC<PlayCardModalProps> = ({
             </SelectContent>
           </Select>
         )}
+        
         {isGuardSelected && canTargetPlayers && (
           <Select
             onValueChange={(value) => setGuessedCard(value as CardType)}
@@ -144,6 +145,7 @@ const PlayCardModal: React.FC<PlayCardModalProps> = ({
             </SelectContent>
           </Select>
         )}
+        
         <DialogFooter>
           <Button
             onClick={handlePlayCard}

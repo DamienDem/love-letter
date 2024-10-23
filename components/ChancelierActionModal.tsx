@@ -31,7 +31,10 @@ interface ChancelierActionModalProps {
   isOpen: boolean;
   onClose: () => void;
   chancellorDrawnCards: Card[];
-  onFinishAction: (keptCardIndex: number, cardOrder: number[]) => void;
+  onFinishAction: (action: {
+    selectedCardIndex: number;
+    topCardIndex?: number;
+  }) => void;
 }
 
 const SortableItem = ({ id, card }: { id: string; card: Card }) => {
@@ -80,14 +83,26 @@ export default function ChancelierActionModal({
   );
 
   useEffect(() => {
-    if (isOpen && chancellorDrawnCards.length > 0) {
-      console.log("Modal opened with cards:", chancellorDrawnCards);
+    if (isOpen) {
       setSelectedCardIndex(null);
       setRemainingCards([]);
       setStep('select');
     }
-  }, [isOpen, chancellorDrawnCards]);
+  }, [isOpen]);
 
+  const handleCardSelect = (index: number) => {
+    setSelectedCardIndex(index);
+    const newRemainingCards = chancellorDrawnCards.filter((_, i) => i !== index);
+    setRemainingCards(newRemainingCards);
+    
+    // Si une ou zéro carte restante, finir directement
+    if (newRemainingCards.length <= 1) {
+      onFinishAction({ selectedCardIndex: index });
+      onClose();
+    } else {
+      setStep('order');
+    }
+  };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -100,46 +115,21 @@ export default function ChancelierActionModal({
     }
   };
 
-// ChancelierActionModal.tsx
+  const handleFinish = () => {
+    if (selectedCardIndex === null) return;
 
-const handleFinish = () => {
-  if (selectedCardIndex !== null && remainingCards.length === 2) {
-    // Créer l'ordre des cartes basé sur leur position dans chancellorDrawnCards
-    const cardOrder = remainingCards.map(remainingCard => 
-      chancellorDrawnCards.findIndex(originalCard => originalCard.id === remainingCard.id)
-    );
-
-    console.log("Finalizing chancellor action:", {
-      selectedCardIndex,
-      remainingCards,
-      cardOrder,
-      originalCards: chancellorDrawnCards
-    });
-
-    // Vérifier que tous les index sont valides
-    if (cardOrder.some(index => index === -1)) {
-      console.error("Invalid card order:", cardOrder);
-      return;
+    // Pour deux cartes restantes, la première carte du tableau sera celle du dessus
+    if (remainingCards.length === 2) {
+      // L'index 0 indique que nous voulons que la première carte du tableau soit au-dessus
+      onFinishAction({
+        selectedCardIndex,
+        topCardIndex: 0
+      });
+      onClose();
     }
+  };
 
-    onFinishAction(selectedCardIndex, cardOrder);
-  }
-};
-
-const handleCardSelect = (index: number) => {
-  console.log("Card selected:", {
-    selectedIndex: index,
-    card: chancellorDrawnCards[index]
-  });
-  
-  setSelectedCardIndex(index);
-  const newRemainingCards = chancellorDrawnCards.filter((_, i) => i !== index);
-  console.log("Remaining cards:", newRemainingCards);
-  setRemainingCards(newRemainingCards);
-  setStep('order');
-};
-
-  // Guard pour le cas où nous n'avons pas les bonnes cartes
+  // Guard pour le cas où nous n'avons pas de cartes
   if (!isOpen || chancellorDrawnCards.length === 0) {
     return null;
   }
@@ -152,13 +142,13 @@ const handleCardSelect = (index: number) => {
           <DialogDescription>
             {step === 'select' 
               ? "Choisissez une carte à conserver dans votre main"
-              : "Organisez l'ordre des cartes à remettre au fond du deck"}
+              : "Glissez pour réorganiser les cartes (la première sera au-dessus du deck)"}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {step === 'select' ? (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               {chancellorDrawnCards.map((card, index) => (
                 <div
                   key={card.id}
@@ -170,7 +160,7 @@ const handleCardSelect = (index: number) => {
                 </div>
               ))}
             </div>
-          ) : (
+          ) : remainingCards.length === 2 && (
             <>
               <Alert>
                 <AlertDescription>
@@ -222,16 +212,12 @@ const handleCardSelect = (index: number) => {
                 variant="outline"
                 onClick={() => {
                   setStep('select');
-                  setSelectedCardIndex(null);
                   setRemainingCards([]);
                 }}
               >
                 Retour
               </Button>
-              <Button 
-                onClick={handleFinish}
-                disabled={remainingCards.length !== 2}
-              >
+              <Button onClick={handleFinish}>
                 Confirmer
               </Button>
             </>

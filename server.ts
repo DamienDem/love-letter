@@ -9,8 +9,10 @@ import {
   Game,
   initializeGame,
   playCard,
+  PlayerAction,
   startTurn,
 } from "./lib/gameLogic";
+import { v4 as uuidv4 } from "uuid";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "localhost";
@@ -45,6 +47,7 @@ app.prepare().then(() => {
           chancellorDrawnCards: [],
           currentRound: 1,
           isChancellorAction: false,
+          actions: [],
         };
         games.push(game);
         socket.join(gameId);
@@ -142,20 +145,44 @@ app.prepare().then(() => {
 
     socket.on(
       "playCard",
-      async ({ gameId, playerId, cardType, targetPlayerId, guessedCard, chancellorAction }) => {
+      async ({
+        gameId,
+        playerId,
+        cardType,
+        targetPlayerId,
+        guessedCard,
+        chancellorAction,
+      }) => {
         const gameIndex = games.findIndex((g) => g.id === gameId);
         if (gameIndex !== -1) {
           let game = games[gameIndex];
           try {
+            const action: PlayerAction = {
+              id: uuidv4(),
+              playerId,
+              cardType,
+              targetPlayerId,
+              guessedCard,
+            };
             console.log("Processing playCard:", {
               cardType,
               playerId,
               hasChancellorAction: !!chancellorAction,
               isChancellorAction: game.isChancellorAction,
               currentPlayerIndex: game.currentPlayerIndex,
-              currentPlayerId: game.players[game.currentPlayerIndex].id
+              currentPlayerId: game.players[game.currentPlayerIndex].id,
             });
+
+            if (cardType === CardType.Garde && targetPlayerId && guessedCard) {
+              const targetPlayer = game.players.find(p => p.id === targetPlayerId);
+              if (targetPlayer && targetPlayer.hand[0]) {
+                action.success = targetPlayer.hand[0].type === guessedCard;
+              }
+            }
     
+            // Ajouter l'action à l'historique
+            if (!game.actions) game.actions = [];
+            game.actions.push(action);
             // Action du Chancelier en deux phases
             if (cardType === CardType.Chancelier) {
               // Première phase : jouer la carte
@@ -169,10 +196,10 @@ app.prepare().then(() => {
                   guessedCard
                 );
                 game = result as Game;
-                
+
                 // Émettre l'événement pour ouvrir le modal
                 io.to(gameId).emit("chancellorAction", { playerId });
-              } 
+              }
               // Deuxième phase : choisir les cartes
               else {
                 console.log("Phase finale du Chancelier");
@@ -185,12 +212,12 @@ app.prepare().then(() => {
                   chancellorAction
                 );
                 game = result as Game;
-                
+
                 // Seulement maintenant on peut finir le tour
                 game = finishTurn(game);
                 game = checkEndOfRound(game);
               }
-            } 
+            }
             // Autres cartes
             else {
               const result = playCard(
@@ -200,24 +227,29 @@ app.prepare().then(() => {
                 targetPlayerId,
                 guessedCard
               );
-    
+
               if ("targetCard" in result) {
                 game = result.game;
+                // Modifier l'émission de l'événement pour inclure le sourcePlayerId
                 io.to(gameId).emit("cardRevealed", {
                   playerId: targetPlayerId,
                   card: result.targetCard,
+                  sourcePlayerId: playerId, // Ajouter l'ID du joueur qui a joué le Prêtre
                 });
               } else {
                 game = result;
               }
-    
+
               game = finishTurn(game);
               game = checkEndOfRound(game);
             }
-    
+
+            // Mettre à jour le jeu
             games[gameIndex] = game;
             io.to(gameId).emit("gameUpdated", game);
-    
+            games[gameIndex] = game;
+            io.to(gameId).emit("gameUpdated", game);
+
             if (game.roundWinner) {
               handleRoundEnd(game, gameId, gameIndex);
             }
