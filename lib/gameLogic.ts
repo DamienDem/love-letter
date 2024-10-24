@@ -147,19 +147,21 @@ export const startNewRound = (game: Game): Game => {
 };
 
 export const startTurn = (game: Game): Game => {
+  // Si le joueur actuel est éliminé, passer au joueur suivant
+  if (game.players[game.currentPlayerIndex].isEliminated) {
+    game = finishTurn(game);
+    return startTurn(game); // Récursion pour trouver le prochain joueur valide
+  }
+
   const currentPlayer = game.players[game.currentPlayerIndex];
   currentPlayer.isProtected = false;
 
-  if (currentPlayer.isEliminated) {
-    game.currentPlayerIndex =
-      (game.currentPlayerIndex + 1) % game.players.length;
-    return startTurn(game);
-  }
-
+  // Si le deck est vide, vérifier la fin de la manche
   if (game.deck.length === 0) {
     return checkEndOfRound(game);
   }
 
+  // Piocher une nouvelle carte pour le joueur actuel
   const newCard = game.deck.pop()!;
   currentPlayer.hand.push(newCard);
 
@@ -340,6 +342,8 @@ export const playBaron = (
 
     if (player.hand[0].value < targetPlayer.hand[0].value) {
       player.isEliminated = true;
+      game.discardPile.push(player.hand[0]);
+      player.hand = [];
     } else if (player.hand[0].value > targetPlayer.hand[0].value) {
       targetPlayer.isEliminated = true;
       game.discardPile.push(targetPlayer.hand[0]);
@@ -535,21 +539,45 @@ export const playChancelier = (
   return game;
 };
 
-// Modifier la fonction finishTurn pour respecter l'action du Chancelier
 export const finishTurn = (game: Game): Game => {
   // Ne pas finir le tour si une action de Chancelier est en cours
   if (game.isChancellorAction) {
     return game;
   }
 
-  const currentPlayer = game.players[game.currentPlayerIndex];
-  if (!currentPlayer.isEliminated) {
-    game.currentPlayerIndex =
-      (game.currentPlayerIndex + 1) % game.players.length;
+  let nextPlayerIndex = game.currentPlayerIndex;
+  let hasCheckedAllPlayers = false;
+  const initialIndex = nextPlayerIndex;
+
+  do {
+    // Passer au joueur suivant
+    nextPlayerIndex = (nextPlayerIndex + 1) % game.players.length;
+
+    // Vérifier si on a fait un tour complet
+    if (nextPlayerIndex === initialIndex) {
+      hasCheckedAllPlayers = true;
+    }
+
+    // Si on trouve un joueur non éliminé ou si on a vérifié tous les joueurs, on sort de la boucle
+  } while (!hasCheckedAllPlayers && game.players[nextPlayerIndex].isEliminated);
+
+  // Si tous les joueurs sauf un sont éliminés, on doit vérifier la fin de la partie
+  const activePlayers = game.players.filter(p => !p.isEliminated);
+  if (activePlayers.length <= 1) {
+    return checkEndOfRound(game);
+  }
+
+  // Mettre à jour l'index du joueur courant
+  game.currentPlayerIndex = nextPlayerIndex;
+
+  // Si le prochain joueur n'est pas éliminé, on peut commencer son tour
+  if (!game.players[nextPlayerIndex].isEliminated) {
+    game.players[nextPlayerIndex].isProtected = false;
   }
 
   return game;
 };
+
 
 export const playRoi = (
   game: Game,

@@ -39,7 +39,7 @@ export default function JoinGamePage() {
 
     function onConnect() {
       setIsConnected(true);
-      console.log("Socket connected");
+   
       socket.emit("getAvailableGames");
     }
 
@@ -55,7 +55,7 @@ export default function JoinGamePage() {
     });
 
     return () => {
-      console.log("Cleaning up socket listeners");
+    
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("availableGames");
@@ -74,7 +74,7 @@ export default function JoinGamePage() {
         id: playerId,
         name: playerName.trim(),
       };
-      console.log("Joining game", selectedGameId);
+      
       
       if (socket) {
         socket.emit("joinGame", selectedGameId, player);

@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Card } from '@/lib/gameLogic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -16,10 +16,6 @@ const PriestEffectModal: React.FC<PriestEffectModalProps> = ({
   targetPlayer,
   revealedCard,
 }) => {
-  useEffect(() => {
-    console.log("PriestEffectModal rendered with:", { isOpen, targetPlayer, revealedCard });
-  }, [isOpen, targetPlayer, revealedCard]);
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>

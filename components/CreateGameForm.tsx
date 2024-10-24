@@ -36,7 +36,7 @@ export default function CreateGameForm() {
 
     function onConnect() {
       setIsConnected(true);
-      console.log("Socket connected");
+     
     }
 
     function onDisconnect() {
@@ -48,7 +48,6 @@ export default function CreateGameForm() {
 
     return () => {
       if (socket) {
-        console.log("Cleaning up socket listeners");
         socket.off("connect", onConnect);
         socket.off("disconnect", onDisconnect);
       }
@@ -76,8 +75,7 @@ export default function CreateGameForm() {
       maxPlayers: parseInt(formData.numPlayers),
       pointsToWin: 3, // Vous pouvez ajuster cela si nécessaire
     };
-
-    console.log("Emitting createGame event:", gameData);
+    
     socket.emit("createGame", gameData);
     router.push(`/game/${gameId}?playerId=${playerId}`);
   };

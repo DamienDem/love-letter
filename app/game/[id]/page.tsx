@@ -5,7 +5,6 @@ import { socket } from "@/lib/socket";
 import { CardType, Game, Player, Card } from "@/lib/gameLogic";
 import GameTable from "@/components/GameTable";
 import PlayCardModal from "@/components/PlayCardModal";
-import DiscardPile from "@/components/DiscardPile";
 import PriestEffectModal from "@/components/PriestEffectModal";
 import ChancelierActionModal from "@/components/ChancelierActionModal";
 import PlayerActions from "@/components/PlayerActions";
@@ -34,17 +33,17 @@ const GamePage: React.FC = () => {
       return;
     }
 
-    console.log("Connecting to game:", gameId, "as player:", playerId);
+  
 
     if (!socket.connected) {
-      console.log("Socket not connected, attempting to connect...");
+   
       socket.connect();
     }
 
     socket.emit("getGameState", gameId);
 
     const onGameState = (gameState: Game) => {
-      console.log("Received initial game state:", gameState);
+  
       setGame(gameState);
       const player = gameState.players.find((p) => p.id === playerId);
       if (player) {
@@ -54,7 +53,6 @@ const GamePage: React.FC = () => {
     };
 
     const onGameUpdated = (updatedGame: Game) => {
-      console.log("Game updated:", updatedGame);
       setGame(updatedGame);
       const player = updatedGame.players.find((p) => p.id === playerId);
       if (player) {
@@ -67,10 +65,6 @@ const GamePage: React.FC = () => {
         updatedGame.chancellorDrawnCards.length > 0 &&
         updatedGame.players[updatedGame.currentPlayerIndex].id === playerId
       ) {
-        console.log(
-          "Opening chancellor modal with cards:",
-          updatedGame.chancellorDrawnCards
-        );
         setIsChancelierModalOpen(true);
       }
 
@@ -78,9 +72,8 @@ const GamePage: React.FC = () => {
       if (
         !updatedGame.isChancellorAction &&
         updatedGame.players[updatedGame.currentPlayerIndex].id === playerId &&
-        player?.hand.length === 1
+        player?.hand?.length === 1
       ) {
-        console.log("Starting turn for player");
         socket.emit("startTurn", gameId);
       }
     };
@@ -94,12 +87,6 @@ const GamePage: React.FC = () => {
       card: Card;
       sourcePlayerId: string; // ID du joueur qui a joué le Prêtre
     }) => {
-      console.log("Card revealed event received:", {
-        targetPlayerId,
-        card,
-        sourcePlayerId,
-      });
-
       // N'afficher la modale que si c'est le joueur qui a joué le Prêtre
       if (sourcePlayerId === playerId) {
         setRevealedCard(card);
@@ -114,10 +101,6 @@ const GamePage: React.FC = () => {
     }: {
       playerId: string;
     }) => {
-      console.log("Chancellor action received:", {
-        chancellorPlayerId,
-        currentPlayerId: playerId,
-      });
       if (chancellorPlayerId === playerId) {
         setIsChancelierModalOpen(true);
       }
@@ -143,7 +126,6 @@ const GamePage: React.FC = () => {
   }, [playerId, gameId]);
 
   const handleCardClick = (cardId: string) => {
-    console.log("Card clicked:", cardId);
     if (game?.players[game.currentPlayerIndex].id === playerId) {
       setSelectedCardId(cardId);
       setIsPlayCardModalOpen(true);
@@ -155,21 +137,9 @@ const GamePage: React.FC = () => {
     targetPlayerId?: string,
     guessedCard?: CardType
   ) => {
-    console.log("handlePlayCard called with:", {
-      cardId,
-      targetPlayerId,
-      guessedCard,
-    });
-
+ 
     const selectedCard = currentPlayer?.hand.find((card) => card.id === cardId);
     if (selectedCard) {
-      console.log("Emitting playCard event:", {
-        gameId,
-        playerId,
-        cardType: selectedCard.type,
-        targetPlayerId,
-        guessedCard,
-      });
 
       socket.emit("playCard", {
         gameId,
@@ -184,20 +154,17 @@ const GamePage: React.FC = () => {
     setSelectedCardId(null);
   };
 
-  const handleChancelierAction = (
-    action: {
-      selectedCardIndex: number;
-      topCardIndex?: number;
-    }
-  ) => {
-    console.log("Handling chancellor action:", action);
-  
+  const handleChancelierAction = (action: {
+    selectedCardIndex: number;
+    topCardIndex?: number;
+  }) => {
+
     if (game && currentPlayer) {
       socket.emit("playCard", {
         gameId,
         playerId,
         cardType: CardType.Chancelier,
-        chancellorAction: action
+        chancellorAction: action,
       });
     }
     setIsChancelierModalOpen(false);
@@ -216,8 +183,7 @@ const GamePage: React.FC = () => {
   }
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Love Letter Game</h1>
+    <div>
       {game.players.length === game.maxPlayers && (
         <>
           <div className="flex justify-between">
@@ -227,12 +193,13 @@ const GamePage: React.FC = () => {
                 currentPlayerId={currentPlayer.id}
                 activePlayerId={game.players[game.currentPlayerIndex].id}
                 onCardClick={handleCardClick}
+                discardPile={game.discardPile}
+                deck={game.deck}
               />
             </div>
-            <div className="w-1/4 space-y-4">
-              <DiscardPile discardPile={game.discardPile} />
-              <PlayerActions 
-                actions={game.actions || []} 
+            <div className="w-1/4">
+              <PlayerActions
+                actions={game.actions || []}
                 players={game.players}
               />
             </div>
@@ -241,7 +208,7 @@ const GamePage: React.FC = () => {
           <PlayCardModal
             isOpen={isPlayCardModalOpen}
             onClose={() => {
-              console.log("Closing PlayCardModal");
+              
               setIsPlayCardModalOpen(false);
               setSelectedCardId(null);
             }}
@@ -255,7 +222,7 @@ const GamePage: React.FC = () => {
             <PriestEffectModal
               isOpen={isPriestModalOpen}
               onClose={() => {
-                console.log("Closing PriestEffectModal");
+                
                 setIsPriestModalOpen(false);
                 setPriestPlayerId(null);
               }}
@@ -267,7 +234,7 @@ const GamePage: React.FC = () => {
           <ChancelierActionModal
             isOpen={isChancelierModalOpen}
             onClose={() => {
-              console.log("Closing ChancelierActionModal");
+           
               setIsChancelierModalOpen(false);
             }}
             chancellorDrawnCards={game.chancellorDrawnCards}

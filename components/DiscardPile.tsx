@@ -24,7 +24,6 @@ const DiscardPile: React.FC<DiscardPileProps> = ({ discardPile }) => {
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="cursor-pointer">
-            <h3 className="text-lg font-semibold mb-2">Dernière carte défaussée :</h3>
             <Card card={lastDiscardedCard} visible />
           </div>
         </TooltipTrigger>

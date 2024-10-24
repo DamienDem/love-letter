@@ -1,13 +1,16 @@
 import React from "react";
-import { CardType, Player } from "@/lib/gameLogic";
+import { CardType, Player, Card } from "@/lib/gameLogic";
 import { Button } from "./ui/button";
-import { cn } from "@/lib/utils"; // Assurez-vous d'avoir cette fonction utilitaire pour combiner les classes
+import { cn } from "@/lib/utils";
+import DiscardPile from "./DiscardPile";
 
 interface GameTableProps {
   players: Player[];
   currentPlayerId: string;
   activePlayerId: string;
   onCardClick: (cardId: string) => void;
+  discardPile: Card[];
+  deck: Card[];
 }
 
 const GameTable: React.FC<GameTableProps> = ({
@@ -15,6 +18,8 @@ const GameTable: React.FC<GameTableProps> = ({
   currentPlayerId,
   activePlayerId,
   onCardClick,
+  discardPile,
+  deck
 }) => {
   const mustPlayCountess = (hand: Player["hand"]) => {
     const hasCountess = hand.some((card) => card.type === CardType.Comtesse);
@@ -32,10 +37,9 @@ const GameTable: React.FC<GameTableProps> = ({
     return false;
   };
 
-  // Calculer les positions des joueurs autour de la table
   const getPlayerPosition = (index: number, totalPlayers: number) => {
-    const angle = (index * (360 / totalPlayers) + 270) % 360; // Commence en haut
-    const radius = 40; // Distance du centre en pourcentage
+    const angle = (index * (360 / totalPlayers) + 270) % 360;
+    const radius = 37;
     const radian = (angle * Math.PI) / 180;
     
     return {
@@ -46,18 +50,55 @@ const GameTable: React.FC<GameTableProps> = ({
   };
 
   return (
-    <div className="relative w-full h-[600px] bg-gray-900 p-8">
+    <div className="relative w-full h-screen bg-[#CABCA4] p-8">
       {/* Table de poker */}
-      <div className="absolute inset-8 rounded-[40%] bg-gradient-to-br from-green-800 to-green-700 shadow-2xl">
-        {/* Bordure de la table */}
-        <div className="absolute inset-4 rounded-[40%] bg-green-600 shadow-inner">
-          {/* Surface de jeu */}
-          <div className="absolute inset-2 rounded-[40%] bg-green-500">
-            {/* Logo au centre */}
+      <div className="absolute inset-10 rounded-[40%] bg-[#222225] shadow-2xl"> {/* Bordure extérieure */}
+        <div className="absolute inset-8 rounded-[40%] bg-[#184119] shadow-inner"> {/* Surface de jeu */}
+          <div className="absolute inset-2 rounded-[40%] bg-gradient-to-br from-[#184119] to-[#184119]/90"> {/* Effet subtil de gradient */}
+            {/* Centre de la table avec Deck et Discard Pile */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 
-                          text-3xl font-bold text-green-700 bg-green-400/20 
-                          rounded-full p-8 select-none">
-              LL
+                          flex items-center gap-8">
+              {/* Deck */}
+              <div className="relative">
+                {deck.length > 0 && (
+                  <>
+                    {[...Array(Math.min(3, deck.length))].map((_, i) => (
+                      <div
+                        key={i}
+                        className="absolute w-16 h-24 rounded-lg bg-gradient-to-br from-red-800 to-red-600 border-2 border-[#222225]"
+                        style={{
+                          top: `${-i * 1}px`,
+                          left: `${-i * 1}px`,
+                          zIndex: -i
+                        }}
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-2xl text-white font-serif">♠</div>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="absolute -top-4 -right-4 w-8 h-8 rounded-full bg-blue-600 
+                                  flex items-center justify-center text-white text-sm font-bold
+                                  border-2 border-white shadow-lg">
+                      {deck.length}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Pile de défausse */}
+              <div className="relative w-16 h-24">
+                {discardPile.length > 0 && (
+                  <>
+                    <DiscardPile discardPile={discardPile}/>
+                    <div className="absolute -top-4 -right-4 w-8 h-8 rounded-full bg-red-600 
+                                  flex items-center justify-center text-white text-sm font-bold
+                                  border-2 border-white shadow-lg">
+                      {discardPile.length}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -70,17 +111,15 @@ const GameTable: React.FC<GameTableProps> = ({
           className="absolute"
           style={getPlayerPosition(index, players.length)}
         >
-          {/* Zone du joueur */}
           <div className={cn(
             "w-48 p-4 rounded-lg backdrop-blur-sm transition-all duration-300",
-            player.id === activePlayerId ? "bg-yellow-500/20" : "bg-black/40",
+            player.id === activePlayerId ? "bg-pink-600/20" : "bg-[#222225]/60",
             player.id === currentPlayerId && "scale-110"
           )}>
-            {/* Nom et statut du joueur */}
             <div className="text-center mb-2">
               <span className={cn(
                 "px-3 py-1 rounded-full text-sm font-semibold",
-                player.id === currentPlayerId ? "bg-blue-500 text-white" : "bg-gray-700 text-gray-200",
+                player.id === currentPlayerId ? "bg-[#184119] text-white" : "bg-[#222225] text-gray-200",
                 player.isEliminated && "line-through opacity-50",
                 player.isProtected && "ring-2 ring-yellow-400"
               )}>
@@ -92,7 +131,6 @@ const GameTable: React.FC<GameTableProps> = ({
               )}
             </div>
 
-            {/* Cartes du joueur */}
             {player.id === currentPlayerId && (
               <div className="flex justify-center gap-2 mt-2">
                 {player.hand.map((card) => (
@@ -107,7 +145,7 @@ const GameTable: React.FC<GameTableProps> = ({
                       "bg-white text-black border-2",
                       player.id === activePlayerId && !isCardDisabled(player, card) 
                         ? "border-yellow-400" 
-                        : "border-gray-300"
+                        : "border-[#222225]"
                     )}
                   >
                     <div className="text-sm font-bold">{card.type}</div>
