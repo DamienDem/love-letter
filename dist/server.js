@@ -4,7 +4,7 @@ import next from "next";
 import { Server } from "socket.io";
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { CardType, checkEndOfRound, finishTurn, initializeGame, playCard, startTurn, } from "./lib/gameLogic";
+import { CardType, checkEndOfRound, finishTurn, initializeGame, playCard, startTurn, } from "./lib/gameLogic.js";
 import { v4 as uuidv4 } from "uuid";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

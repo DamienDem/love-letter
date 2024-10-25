@@ -13,7 +13,7 @@ import {
   playCard,
   PlayerAction,
   startTurn,
-} from "./lib/gameLogic";
+} from "./lib/gameLogic.js";
 import { v4 as uuidv4 } from "uuid";
 
 const __filename = fileURLToPath(import.meta.url);
