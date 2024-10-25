@@ -1,12 +1,17 @@
+// tsconfig.server.json
 {
-    "extends": "./tsconfig.json",
-    "compilerOptions": {
-      "module": "commonjs",
-      "outDir": "dist",
-      "lib": ["esnext"],
-      "target": "esnext",
-      "isolatedModules": false,
-      "noEmit": false
-    },
-    "include": ["server.ts"]
-  }
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "noEmit": false,
+    "esModuleInterop": true,
+    "target": "es2022",
+    "sourceMap": true,
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["server.ts"]
+}

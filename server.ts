@@ -1,7 +1,9 @@
 //server.ts
-import { createServer } from "node:http";
+import { createServer } from "http";
 import next from "next";
 import { Server } from "socket.io";
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import {
   CardType,
   checkEndOfRound,
@@ -14,10 +16,14 @@ import {
 } from "./lib/gameLogic";
 import { v4 as uuidv4 } from "uuid";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const dev = process.env.NODE_ENV !== "production";
-const hostname = "localhost";
-const port = 3000;
-const app = next({ dev, hostname, port });
+const hostname = process.env.HOST || "0.0.0.0";
+const port = parseInt(process.env.PORT || "3000", 10);
+
+const app = next({ dev, dir: __dirname });
 const handler = app.getRequestHandler();
 const games: Game[] = [];
 
