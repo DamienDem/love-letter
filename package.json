@@ -2,10 +2,11 @@
   "name": "love-letter",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "nodemon",
+    "dev": "ts-node --esm server.ts",
     "build": "next build",
-    "start": "NODE_ENV=production ts-node server.ts",
+    "start": "NODE_ENV=production ts-node --esm server.ts",
     "lint": "next lint"
   },
   "dependencies": {
