@@ -1,17 +1,12 @@
-// tsconfig.server.json
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "node",
+    "module": "commonjs",
     "outDir": "dist",
-    "noEmit": false,
-    "esModuleInterop": true,
-    "target": "es2022",
-    "sourceMap": true,
-    "paths": {
-      "@/*": ["./*"]
-    }
+    "lib": ["es2019"],
+    "target": "ESNext",
+    "isolatedModules": false,
+    "noEmit": false
   },
-  "include": ["server.ts", "lib/**/*"]
+  "include": ["server.ts"]
 }

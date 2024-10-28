@@ -2,8 +2,6 @@
 import { createServer } from "http";
 import next from "next";
 import { Server } from "socket.io";
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 import {
   CardType,
   checkEndOfRound,
@@ -16,20 +14,22 @@ import {
 } from "./lib/gameLogic.js";
 import { v4 as uuidv4 } from "uuid";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
 const dev = process.env.NODE_ENV !== "production";
-const hostname = process.env.HOST || "0.0.0.0";
-const port = parseInt(process.env.PORT || "3000", 10);
-
-const app = next({ dev, dir: __dirname });
+const hostname = process.env.HOSTNAME || "localhost";
+const port = parseInt(process.env.PORT!) || 3000;
+const app = next({ dev, hostname, port });
 const handler = app.getRequestHandler();
 const games: Game[] = [];
 
 app.prepare().then(() => {
   const httpServer = createServer(handler);
-  const io = new Server(httpServer);
+  const io = new Server(httpServer, {
+    cors: {
+      origin: process.env.NEXT_PUBLIC_APP_URL,
+      methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+      credentials: true
+    },
+  });
 
   io.on("connection", (socket) => {
     console.log("New client connected");

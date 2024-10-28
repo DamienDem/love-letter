@@ -1,6 +1,9 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.playTurn = exports.playCard = exports.playPrincesse = exports.playComtesse = exports.playRoi = exports.finishTurn = exports.playChancelier = exports.playPrince = exports.playServante = exports.playBaron = exports.playPretre = exports.playEspionne = exports.playGuard = exports.checkEndOfRound = exports.startTurn = exports.startNewRound = exports.initializeGame = exports.CardType = void 0;
 // lib/gameLogic.ts
-import { v4 as uuidv4 } from "uuid";
-export var CardType;
+const uuid_1 = require("uuid");
+var CardType;
 (function (CardType) {
     CardType["Garde"] = "Garde";
     CardType["Espionne"] = "Espionne";
@@ -12,12 +15,12 @@ export var CardType;
     CardType["Roi"] = "Roi";
     CardType["Comtesse"] = "Comtesse";
     CardType["Princesse"] = "Princesse";
-})(CardType || (CardType = {}));
+})(CardType || (exports.CardType = CardType = {}));
 const createDeck = () => {
     const deck = [];
     const addCards = (type, value, count) => {
         for (let i = 0; i < count; i++) {
-            deck.push({ id: uuidv4(), type, value });
+            deck.push({ id: (0, uuid_1.v4)(), type, value });
         }
     };
     addCards(CardType.Garde, 1, 6);
@@ -35,7 +38,7 @@ const createDeck = () => {
 const shuffleDeck = (deck) => {
     return deck.sort(() => Math.random() - 0.5);
 };
-export const initializeGame = (gameData) => {
+const initializeGame = (gameData) => {
     const deck = createDeck();
     const hiddenCardIndex = Math.floor(Math.random() * deck.length);
     const hiddenCard = deck.splice(hiddenCardIndex, 1)[0];
@@ -63,7 +66,8 @@ export const initializeGame = (gameData) => {
         actions: []
     };
 };
-export const startNewRound = (game) => {
+exports.initializeGame = initializeGame;
+const startNewRound = (game) => {
     game.deck = createDeck();
     const hiddenCardIndex = Math.floor(Math.random() * game.deck.length);
     game.hiddenCard = game.deck.splice(hiddenCardIndex, 1)[0];
@@ -80,24 +84,26 @@ export const startNewRound = (game) => {
     game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
     return game;
 };
-export const startTurn = (game) => {
+exports.startNewRound = startNewRound;
+const startTurn = (game) => {
     // Si le joueur actuel est éliminé, passer au joueur suivant
     if (game.players[game.currentPlayerIndex].isEliminated) {
-        game = finishTurn(game);
-        return startTurn(game); // Récursion pour trouver le prochain joueur valide
+        game = (0, exports.finishTurn)(game);
+        return (0, exports.startTurn)(game); // Récursion pour trouver le prochain joueur valide
     }
     const currentPlayer = game.players[game.currentPlayerIndex];
     currentPlayer.isProtected = false;
     // Si le deck est vide, vérifier la fin de la manche
     if (game.deck.length === 0) {
-        return checkEndOfRound(game);
+        return (0, exports.checkEndOfRound)(game);
     }
     // Piocher une nouvelle carte pour le joueur actuel
     const newCard = game.deck.pop();
     currentPlayer.hand.push(newCard);
     return game;
 };
-export const checkEndOfRound = (game) => {
+exports.startTurn = startTurn;
+const checkEndOfRound = (game) => {
     const activePlayers = game.players.filter((p) => !p.isEliminated);
     if (activePlayers.length === 1 ||
         (game.deck.length === 0 && activePlayers.every((p) => p.hand.length === 1))) {
@@ -131,12 +137,13 @@ export const checkEndOfRound = (game) => {
             console.log(`La partie se termine sur une égalité entre ${winnerNames} avec ${game.pointsToWin} points!`);
         }
         else {
-            game = startNewRound(game);
+            game = (0, exports.startNewRound)(game);
         }
     }
     return game;
 };
-export const playGuard = (game, playerId, targetPlayerId, guessedCard) => {
+exports.checkEndOfRound = checkEndOfRound;
+const playGuard = (game, playerId, targetPlayerId, guessedCard) => {
     const player = game.players.find((p) => p.id === playerId);
     if (!player)
         throw new Error("Joueur non trouvé");
@@ -165,7 +172,8 @@ export const playGuard = (game, playerId, targetPlayerId, guessedCard) => {
     game.discardPile.push(playedCard);
     return game;
 };
-export const playEspionne = (game, playerId) => {
+exports.playGuard = playGuard;
+const playEspionne = (game, playerId) => {
     const player = game.players.find((p) => p.id === playerId);
     if (!player)
         throw new Error("Joueur non trouvé");
@@ -179,7 +187,8 @@ export const playEspionne = (game, playerId) => {
     game.playedEspionnes.push(playerId);
     return game;
 };
-export const playPretre = (game, playerId, targetPlayerId) => {
+exports.playEspionne = playEspionne;
+const playPretre = (game, playerId, targetPlayerId) => {
     const player = game.players.find((p) => p.id === playerId);
     let targetPlayer;
     if (!player)
@@ -205,7 +214,8 @@ export const playPretre = (game, playerId, targetPlayerId) => {
         : game;
     return res;
 };
-export const playBaron = (game, playerId, targetPlayerId) => {
+exports.playPretre = playPretre;
+const playBaron = (game, playerId, targetPlayerId) => {
     const player = game.players.find((p) => p.id === playerId);
     if (!player)
         throw new Error("Joueur non trouvé");
@@ -238,7 +248,8 @@ export const playBaron = (game, playerId, targetPlayerId) => {
     game.discardPile.push(playedCard);
     return game;
 };
-export const playServante = (game, playerId) => {
+exports.playBaron = playBaron;
+const playServante = (game, playerId) => {
     const player = game.players.find((p) => p.id === playerId);
     if (!player)
         throw new Error("Joueur non trouvé");
@@ -252,7 +263,8 @@ export const playServante = (game, playerId) => {
     player.isProtected = true;
     return game;
 };
-export const playPrince = (game, playerId, targetPlayerId) => {
+exports.playServante = playServante;
+const playPrince = (game, playerId, targetPlayerId) => {
     const player = game.players.find((p) => p.id === playerId);
     if (!player)
         throw new Error("Joueur non trouvé");
@@ -290,7 +302,8 @@ export const playPrince = (game, playerId, targetPlayerId) => {
     }
     return game;
 };
-export const playChancelier = (game, playerId, chancellorAction) => {
+exports.playPrince = playPrince;
+const playChancelier = (game, playerId, chancellorAction) => {
     const player = game.players.find((p) => p.id === playerId);
     if (!player)
         throw new Error("Joueur non trouvé");
@@ -372,7 +385,8 @@ export const playChancelier = (game, playerId, chancellorAction) => {
     });
     return game;
 };
-export const finishTurn = (game) => {
+exports.playChancelier = playChancelier;
+const finishTurn = (game) => {
     // Ne pas finir le tour si une action de Chancelier est en cours
     if (game.isChancellorAction) {
         return game;
@@ -392,7 +406,7 @@ export const finishTurn = (game) => {
     // Si tous les joueurs sauf un sont éliminés, on doit vérifier la fin de la partie
     const activePlayers = game.players.filter(p => !p.isEliminated);
     if (activePlayers.length <= 1) {
-        return checkEndOfRound(game);
+        return (0, exports.checkEndOfRound)(game);
     }
     // Mettre à jour l'index du joueur courant
     game.currentPlayerIndex = nextPlayerIndex;
@@ -402,7 +416,8 @@ export const finishTurn = (game) => {
     }
     return game;
 };
-export const playRoi = (game, playerId, targetPlayerId) => {
+exports.finishTurn = finishTurn;
+const playRoi = (game, playerId, targetPlayerId) => {
     const player = game.players.find((p) => p.id === playerId);
     if (!player)
         throw new Error("Joueur non trouvé");
@@ -428,7 +443,8 @@ export const playRoi = (game, playerId, targetPlayerId) => {
     }
     return game;
 };
-export const playComtesse = (game, playerId) => {
+exports.playRoi = playRoi;
+const playComtesse = (game, playerId) => {
     const player = game.players.find((p) => p.id === playerId);
     if (!player)
         throw new Error("Joueur non trouvé");
@@ -441,7 +457,8 @@ export const playComtesse = (game, playerId) => {
     game.discardPile.push(playedCard);
     return game;
 };
-export const playPrincesse = (game, playerId) => {
+exports.playComtesse = playComtesse;
+const playPrincesse = (game, playerId) => {
     const player = game.players.find((p) => p.id === playerId);
     if (!player)
         throw new Error("Joueur non trouvé");
@@ -455,12 +472,13 @@ export const playPrincesse = (game, playerId) => {
     player.isEliminated = true;
     return game;
 };
+exports.playPrincesse = playPrincesse;
 const mustPlayComtesse = (hand) => {
     const hasComtesse = hand.some((card) => card.type === CardType.Comtesse);
     const hasPrinceOrKing = hand.some((card) => card.type === CardType.Prince || card.type === CardType.Roi);
     return hasComtesse && hasPrinceOrKing;
 };
-export const playCard = (game, playerId, cardType, targetPlayerId, guessedCard, chancellorAction) => {
+const playCard = (game, playerId, cardType, targetPlayerId, guessedCard, chancellorAction) => {
     if (game.players[game.currentPlayerIndex].id !== playerId) {
         throw new Error("Ce n'est pas le tour de ce joueur");
     }
@@ -476,47 +494,48 @@ export const playCard = (game, playerId, cardType, targetPlayerId, guessedCard, 
     let result;
     switch (cardType) {
         case CardType.Garde:
-            result = playGuard(game, playerId, targetPlayerId, guessedCard);
+            result = (0, exports.playGuard)(game, playerId, targetPlayerId, guessedCard);
             break;
         case CardType.Espionne:
-            result = playEspionne(game, playerId);
+            result = (0, exports.playEspionne)(game, playerId);
             break;
         case CardType.Pretre:
-            result = playPretre(game, playerId, targetPlayerId);
+            result = (0, exports.playPretre)(game, playerId, targetPlayerId);
             break;
         case CardType.Baron:
-            result = playBaron(game, playerId, targetPlayerId);
+            result = (0, exports.playBaron)(game, playerId, targetPlayerId);
             break;
         case CardType.Servante:
-            result = playServante(game, playerId);
+            result = (0, exports.playServante)(game, playerId);
             break;
         case CardType.Prince:
-            result = playPrince(game, playerId, targetPlayerId);
+            result = (0, exports.playPrince)(game, playerId, targetPlayerId);
             break;
         case CardType.Chancelier:
-            result = playChancelier(game, playerId, chancellorAction);
+            result = (0, exports.playChancelier)(game, playerId, chancellorAction);
             break;
         case CardType.Roi:
-            result = playRoi(game, playerId, targetPlayerId);
+            result = (0, exports.playRoi)(game, playerId, targetPlayerId);
             break;
         case CardType.Comtesse:
-            result = playComtesse(game, playerId);
+            result = (0, exports.playComtesse)(game, playerId);
             break;
         case CardType.Princesse:
-            result = playPrincesse(game, playerId);
+            result = (0, exports.playPrincesse)(game, playerId);
             break;
         default:
             throw new Error("Type de carte non reconnu");
     }
     return result;
 };
-export const playTurn = (game, playerId, cardType, targetPlayerId, guessedCard) => {
-    game = startTurn(game);
-    game = checkEndOfRound(game);
+exports.playCard = playCard;
+const playTurn = (game, playerId, cardType, targetPlayerId, guessedCard) => {
+    game = (0, exports.startTurn)(game);
+    game = (0, exports.checkEndOfRound)(game);
     if (game.roundWinner || game.gameWinner) {
         return game;
     }
-    const result = playCard(game, playerId, cardType, targetPlayerId, guessedCard);
-    return checkEndOfRound(result instanceof Object && "game" in result ? result.game : result);
+    const result = (0, exports.playCard)(game, playerId, cardType, targetPlayerId, guessedCard);
+    return (0, exports.checkEndOfRound)(result instanceof Object && "game" in result ? result.game : result);
 };
-//# sourceMappingURL=gameLogic.js.map
+exports.playTurn = playTurn;
