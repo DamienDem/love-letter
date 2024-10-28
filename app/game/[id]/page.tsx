@@ -132,6 +132,8 @@ const GamePage: React.FC = () => {
     }
   };
 
+  console.log("game", game);
+  
   const handlePlayCard = (
     cardId: string,
     targetPlayerId?: string,
