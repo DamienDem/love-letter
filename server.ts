@@ -2,10 +2,16 @@ import { createServer } from "http";
 import next from "next";
 import { Server, Socket } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
-import { CardType, ChancellorAction, IGameState, IPlayer } from "./lib/types";
+import {
+  CardType,
+  ChancellorAction,
+  IGameState,
+  IPlayer,
+  IPlayerAction,
+} from "./lib/types";
 import { GameUtils } from "./lib/gameUtils";
 import { GameEngine } from "./lib/gameEngine";
-import { initializeGame, PlayerAction } from "./lib/gameLogic";
+import { DeckManager } from "./lib/deckManager";
 
 // Interfaces
 interface GameManager {
@@ -94,10 +100,9 @@ class SocketEventHandler {
       this.gameManager.joinGame(gameId, player);
       this.socket.join(gameId);
 
-      let gameState = this.gameManager.getGameState(gameId);
+      const gameState = this.gameManager.getGameState(gameId);
       if (gameState) {
         if (gameState.players.length === gameState.maxPlayers) {
-          gameState = initializeGame(gameState);
           this.io.to(gameId).emit("gameStarted", gameState);
         } else {
           this.io.to(gameId).emit("playerJoined", { gameId, player });
@@ -147,22 +152,23 @@ class SocketEventHandler {
       if (gameState) {
         this.io.to(data.gameId).emit("gameUpdated", gameState);
 
+        console.log("🚀 ~ SocketEventHandler ~ handlePlayCard ~ gameState:", {
+          currentPlayerIndex: gameState.currentPlayerIndex,
+          currentPlayerId: gameState.players[gameState.currentPlayerIndex].id
+        })
         if (gameState.roundWinner) {
           this.handleRoundEnd(gameState, data.gameId);
         }
 
         // Gérer les événements spéciaux
-        this.handleSpecialCardEffects(gameState, data);
+        this.handleSpecialCardEffects(data);
       }
     } catch (error) {
       this.handleError(error);
     }
   }
 
-  private handleSpecialCardEffects(
-    gameState: IGameState,
-    data: PlayCardData
-  ): void {
+  private handleSpecialCardEffects(data: PlayCardData): void {
     if (data.cardType === CardType.Chancelier && !data.chancellorAction) {
       this.io.to(data.gameId).emit("chancellorAction", {
         playerId: data.playerId,
@@ -235,7 +241,7 @@ class GameManagerImpl implements GameManager {
 
     gameState.players.push({
       ...player,
-      hand: [],
+      hand: [DeckManager.drawCard(gameState.deck)!],
       isEliminated: false,
       points: 0,
       isProtected: false,
@@ -262,7 +268,7 @@ class GameManagerImpl implements GameManager {
       throw new Error("Game not found");
     }
 
-    const action: PlayerAction = {
+    const action: IPlayerAction = {
       id: uuidv4(),
       playerId: data.playerId,
       cardType: data.cardType,

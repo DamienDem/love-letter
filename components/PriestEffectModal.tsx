@@ -1,39 +1,38 @@
 'use client';
-import React from 'react';
-import { Card } from '@/lib/gameLogic';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ModalContextProps } from "@/lib/types";
+import { BaseGameModal } from "./BaseGameModal";
 
 interface PriestEffectModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  targetPlayer: string;
-  revealedCard: Card | null;
+  modalContext: ModalContextProps;
 }
 
-const PriestEffectModal: React.FC<PriestEffectModalProps> = ({
-  isOpen,
-  onClose,
-  targetPlayer,
-  revealedCard,
+export const PriestEffectModal: React.FC<PriestEffectModalProps> = ({
+  modalContext
 }) => {
+  const { modalStates, modalActions } = modalContext;
+
+  const handleClose = () => {
+    modalActions.setIsPriestModalOpen(false);
+    modalActions.setPriestPlayerId(null);
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Priest Effect</DialogTitle>
-        </DialogHeader>
-        {revealedCard ? (
-          <div>
-            <p>You revealed {targetPlayer}s card:</p>
-            <p className="font-bold mt-2">{revealedCard.type}</p>
-            <p>Value: {revealedCard.value}</p>
+    <BaseGameModal
+      isOpen={modalStates.isPriestModalOpen}
+      onClose={handleClose}
+      title="Priest Effect"
+    >
+      {modalStates.revealedCard ? (
+        <div className="space-y-2">
+          <p>You revealed {modalStates.targetPlayer}s card:</p>
+          <div className="p-4 bg-gray-50 rounded">
+            <p className="font-bold">{modalStates.revealedCard.type}</p>
+            <p className="text-sm text-gray-600">Value: {modalStates.revealedCard.value}</p>
           </div>
-        ) : (
-          <p>No card revealed</p>
-        )}
-      </DialogContent>
-    </Dialog>
+        </div>
+      ) : (
+        <p>No card revealed</p>
+      )}
+    </BaseGameModal>
   );
 };
-
-export default PriestEffectModal;

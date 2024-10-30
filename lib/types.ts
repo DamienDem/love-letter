@@ -82,3 +82,36 @@ export type PriestResult = {
   targetCard?: ICard;
 };
 
+export interface GameListState {
+  id: string;
+  name: string;
+  players: number;
+  maxPlayers: number;
+}
+
+export interface JoinGameData {
+  gameId: string;
+  player: Omit<IPlayer, 'hand' | 'isEliminated' | 'points' | 'isProtected'>;
+}
+
+export interface ModalContextProps {
+  modalStates: {
+    isPlayCardModalOpen: boolean;
+    isPriestModalOpen: boolean;
+    isChancelierModalOpen: boolean;
+    selectedCardId: string | null;
+    revealedCard: ICard | null;
+    targetPlayer: string;
+    priestPlayerId: string | null;
+  };
+  modalActions: {
+    setIsPlayCardModalOpen: (value: boolean) => void;
+    setIsPriestModalOpen: (value: boolean) => void;
+    setIsChancelierModalOpen: (value: boolean) => void;
+    setSelectedCardId: (value: string | null) => void;
+    setRevealedCard: (value: ICard | null) => void;
+    setTargetPlayer: (value: string) => void;
+    setPriestPlayerId: (value: string | null) => void;
+    closeAllModals: () => void;
+  };
+}

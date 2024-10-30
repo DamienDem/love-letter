@@ -1,16 +1,16 @@
-import React from "react";
-import { CardType, Player, Card } from "@/lib/gameLogic";
+'use client';
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 import DiscardPile from "./DiscardPile";
+import { CardType, ICard, IPlayer } from "@/lib/types";
 
 interface GameTableProps {
-  players: Player[];
+  players: IPlayer[];
   currentPlayerId: string;
   activePlayerId: string;
   onCardClick: (cardId: string) => void;
-  discardPile: Card[];
-  deck: Card[];
+  discardPile: ICard[];
+  deck: ICard[];
 }
 
 const GameTable: React.FC<GameTableProps> = ({
@@ -21,7 +21,7 @@ const GameTable: React.FC<GameTableProps> = ({
   discardPile,
   deck
 }) => {
-  const mustPlayCountess = (hand: Player["hand"]) => {
+  const mustPlayCountess = (hand: IPlayer["hand"]) => {
     const hasCountess = hand.some((card) => card.type === CardType.Comtesse);
     const hasKingOrPrince = hand.some(
       (card) => card.type === CardType.Roi || card.type === CardType.Prince
@@ -29,7 +29,7 @@ const GameTable: React.FC<GameTableProps> = ({
     return hasCountess && hasKingOrPrince;
   };
 
-  const isCardDisabled = (player: Player, card: Player["hand"][0]) => {
+  const isCardDisabled = (player: IPlayer, card: IPlayer["hand"][0]) => {
     if (player.id !== activePlayerId) return true;
     if (mustPlayCountess(player.hand)) {
       return card.type !== CardType.Comtesse;

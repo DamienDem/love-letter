@@ -1,6 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { Player, CardType } from "@/lib/gameLogic";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,12 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CardType, IPlayer } from "@/lib/types";
 
 interface PlayCardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentPlayer: Player;
-  players: Player[];
+  currentPlayer: IPlayer;
+  players: IPlayer[];
   onPlayCard: (
     cardId: string,
     targetPlayerId?: string,

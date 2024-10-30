@@ -1,11 +1,11 @@
 // components/PlayerActions.tsx
-import React from "react";
-import { Game, CardType, PlayerAction } from "@/lib/gameLogic";
+'use client';
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { CardType, IGameState, IPlayerAction } from "@/lib/types";
 
 interface PlayerActionsProps {
-  actions: PlayerAction[];
-  players: Game["players"];
+  actions: IPlayerAction[];
+  players: IGameState["players"];
 }
 
 const PlayerActions: React.FC<PlayerActionsProps> = ({ actions, players }) => {
@@ -13,7 +13,7 @@ const PlayerActions: React.FC<PlayerActionsProps> = ({ actions, players }) => {
     return players.find((p) => p.id === playerId);
   };
 
-  const formatAction = (action: PlayerAction) => {
+  const formatAction = (action: IPlayerAction) => {
     const player = getPlayer(action.playerId);
     const target = action.targetPlayerId
       ? getPlayer(action.targetPlayerId)
@@ -76,10 +76,10 @@ const PlayerActions: React.FC<PlayerActionsProps> = ({ actions, players }) => {
 
   return (
     <>
-      <h3 className="bg-[#6B6B6B] w-full p-2 text-lg font-semibold">
+      <h3 className="bg-[#6B6B6B] w-full text-lg p-2 font-semibold">
         Historique
       </h3>
-      <div className="bg-[#333333] h-[calc(100vh-44px)] shadow p-4 max-w-md">
+      <div className="bg-[#333333] h-[calc(100vh-44px)] shadow">
         <ScrollArea className="h-full">
           <div className="space-y-2">
             {actions

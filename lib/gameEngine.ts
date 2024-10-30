@@ -97,12 +97,23 @@ export class GameEngine {
     targetPlayerId?: string,
     additionalData?: CardEffectData[keyof CardEffectData]
   ): CardEffectResult {
+    
     if (this.state.players[this.state.currentPlayerIndex].id !== playerId) {
       throw new Error("Ce n'est pas le tour de ce joueur");
     }
   
     const effect = CardEffectFactory.getEffect(cardType);
-    return effect.execute(this, playerId, targetPlayerId, additionalData as never);
+    const result = effect.execute(this, playerId, targetPlayerId, additionalData as never);
+    
+    // Finish the turn after card is played, unless it's a Chancellor action
+    if (!this.state.isChancellorAction) {
+      this.finishTurn();
+    } else {
+      throw new Error('Chancellor action in progress, turn not finished yet');
+    }
+    
+    return result;
+    
   }
 
   checkEndOfRound(): void {

@@ -4,9 +4,9 @@ import { ICard, CardType } from './types';
 
 export class DeckManager {
   private static readonly CARD_CONFIGS = [
-    { type: CardType.Garde, value: 1, count: 6 },
+    { type: CardType.Garde, value: 1, count: 100 },
     { type: CardType.Espionne, value: 0, count: 2 },
-    { type: CardType.Pretre, value: 2, count: 2 },
+    { type: CardType.Pretre, value: 2, count: 100 },
     { type: CardType.Baron, value: 3, count: 2 },
     { type: CardType.Servante, value: 4, count: 2 },
     { type: CardType.Prince, value: 5, count: 2 },
