@@ -1,18 +1,16 @@
 import { DeckManager } from "./deckManager";
 import { GameEngine } from "./gameEngine";
-import {
-  CardType,
-  CardEffectData,
-  CardEffectResult,
-} from "./types";
+import { CardType, CardEffectData, CardEffectResult } from "./types";
 
-export abstract class CardEffect<T extends keyof CardEffectData | never = never> {
-    abstract execute(
-      game: GameEngine,
-      playerId: string,
-      targetPlayerId?: string,
-      additionalData?: T extends keyof CardEffectData ? CardEffectData[T] : undefined
-    ): CardEffectResult;
+export abstract class CardEffect<
+  T extends keyof CardEffectData | never = never
+> {
+  abstract execute(
+    game: GameEngine,
+    playerId: string,
+    targetPlayerId?: string,
+    additionalData?: CardEffectData[T]
+  ): CardEffectResult;
 
   protected validateBasicConditions(
     game: GameEngine,
@@ -37,12 +35,12 @@ export abstract class CardEffect<T extends keyof CardEffectData | never = never>
   }
 }
 
-export class GardeEffect extends CardEffect<'guard'> {
+export class GardeEffect extends CardEffect<"guard"> {
   execute(
     game: GameEngine,
     playerId: string,
     targetPlayerId?: string,
-    guardData?: CardEffectData['guard']
+    guardData?: CardEffectData["guard"]
   ): CardEffectResult {
     this.validateBasicConditions(game, playerId, CardType.Garde);
     const gameState = game.playCardAndDiscard(playerId, CardType.Garde);
@@ -168,66 +166,84 @@ export class PrinceEffect extends CardEffect {
   }
 }
 
-export class ChancelierEffect extends CardEffect<'chancellor'> {
-    execute(game: GameEngine, playerId: string, targetPlayerId?: string, chancellorAction?: CardEffectData['chancellor']): CardEffectResult {
-      const gameState = game.getState();
-      const player = game.getPlayer(playerId)!;
-  
-      // Phase initiale
-      if (!chancellorAction) {
-        this.validateBasicConditions(game, playerId, CardType.Chancelier);
-        gameState.isChancellorAction = true;
-        game.playCardAndDiscard(playerId, CardType.Chancelier);
-        
-        if (gameState.deck.length === 0) return { gameState };
-  
-        const originalCard = player.hand[0];
-        player.hand = [];
-        gameState.chancellorDrawnCards = [];
-  
-        // Piocher au maximum 2 cartes
-        const cardsToDrawCount = Math.min(2, gameState.deck.length);
-        for (let i = 0; i < cardsToDrawCount; i++) {
-          gameState.chancellorDrawnCards.push(DeckManager.drawCard(gameState.deck)!);
-        }
-        
-        if (originalCard) {
-          gameState.chancellorDrawnCards.push(originalCard);
-        }
-        
-        return { gameState };
-      }
-  
-      // Phase de résolution
-      if (!gameState.isChancellorAction) {
-        throw new Error("Aucune action de Chancelier n'est en cours");
-      }
-  
-      const { selectedCardIndex, topCardIndex } = chancellorAction;
-      if (selectedCardIndex < 0 || selectedCardIndex >= gameState.chancellorDrawnCards.length) {
-        throw new Error("Index de la carte sélectionnée invalide");
-      }
-  
-      player.hand = [gameState.chancellorDrawnCards[selectedCardIndex]];
-      const remainingCards = gameState.chancellorDrawnCards.filter((_, i) => i !== selectedCardIndex);
-  
-      if (remainingCards.length === 1) {
-        gameState.deck.unshift(remainingCards[0]);
-      } else if (remainingCards.length === 2 && topCardIndex !== undefined) {
-        if (topCardIndex === 0 || topCardIndex === 1) {
-          const [first, second] = topCardIndex === 0 ? remainingCards : remainingCards.reverse();
-          gameState.deck.unshift(second);
-          gameState.deck.unshift(first);
-        } else {
-          throw new Error("Index de la carte du dessus invalide");
-        }
-      }
-  
+export class ChancelierEffect extends CardEffect<"chancellor"> {
+  execute(
+    game: GameEngine,
+    playerId: string,
+    targetPlayerId?: string,
+    chancellorAction?: CardEffectData["chancellor"]
+  ): CardEffectResult {
+    const gameState = game.getState();
+    const player = game.getPlayer(playerId)!;
+    
+
+    // Phase initiale
+    if (!chancellorAction) {
+      this.validateBasicConditions(game, playerId, CardType.Chancelier);
+      game.startChancellorAction();
+      game.playCardAndDiscard(playerId, CardType.Chancelier);
+
+      if (gameState.deck.length === 0) return { gameState };
+
+      const originalCard = player.hand[0];
+      player.hand = [];
       gameState.chancellorDrawnCards = [];
-      gameState.isChancellorAction = false;
+
+      // Piocher au maximum 2 cartes
+      const cardsToDrawCount = Math.min(2, gameState.deck.length);
+      for (let i = 0; i < cardsToDrawCount; i++) {
+        gameState.chancellorDrawnCards.push(
+          DeckManager.drawCard(gameState.deck)!
+        );
+      }
+
+      if (originalCard) {
+        gameState.chancellorDrawnCards.push(originalCard);
+      }
+
+      game.setChancellorDrawnCards(gameState.chancellorDrawnCards);
+
       return { gameState };
     }
+
+    // Phase de résolution
+    if (!gameState.isChancellorAction) {
+      throw new Error("Aucune action de Chancelier n'est en cours");
+    }
+
+    const { selectedCardIndex, topCardIndex } = chancellorAction;
+    if (
+      selectedCardIndex < 0 ||
+      selectedCardIndex >= gameState.chancellorDrawnCards.length
+    ) {
+      throw new Error("Index de la carte sélectionnée invalide");
+    }
+
+    player.hand = [gameState.chancellorDrawnCards[selectedCardIndex]];
+    const remainingCards = gameState.chancellorDrawnCards.filter(
+      (_, i) => i !== selectedCardIndex
+    );
+
+    if (remainingCards.length === 1) {
+      gameState.deck.unshift(remainingCards[0]);
+    } else if (remainingCards.length === 2 && topCardIndex !== undefined) {
+      if (topCardIndex === 0 || topCardIndex === 1) {
+        const [first, second] =
+          topCardIndex === 0 ? remainingCards : remainingCards.reverse();
+        gameState.deck.unshift(second);
+        gameState.deck.unshift(first);
+      } else {
+        throw new Error("Index de la carte du dessus invalide");
+      }
+    }
+
+    game.clearChancellorDrawnCards();
+    game.endChancellorAction();
+  
+    
+    return { gameState };
   }
+}
 
 export class RoiEffect extends CardEffect {
   execute(

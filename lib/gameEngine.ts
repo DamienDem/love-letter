@@ -9,7 +9,6 @@ import {
   CardEffectResult,
 } from "./types";
 
-
 import { DeckManager } from "./deckManager";
 import { CardEffectFactory } from "./cardEffect";
 
@@ -74,13 +73,17 @@ export class GameEngine {
   }
 
   startTurn(): void {
+    console.log("=== Starting Turn ===");
     if (this.getCurrentPlayer().isEliminated) {
       this.finishTurn();
       this.startTurn();
       return;
     }
 
+    console.log("deck length:", this.state.deck.length);
+
     if (this.state.deck.length === 0) {
+      console.log("Deck is empty, checking end of round");
       this.checkEndOfRound();
       return;
     }
@@ -88,56 +91,105 @@ export class GameEngine {
     const currentPlayer = this.getCurrentPlayer();
     currentPlayer.isProtected = false;
     const newCard = DeckManager.drawCard(this.state.deck);
+    console.log("Drew new card:", newCard?.type);
     if (newCard) currentPlayer.hand.push(newCard);
   }
 
+  startChancellorAction(): void {
+    this.state.isChancellorAction = true;
+  }
+  endChancellorAction(): void {
+    this.state.isChancellorAction = false;
+  }
+  setChancellorDrawnCards(cards: ICard[]): void {
+    this.state.chancellorDrawnCards = cards;
+  }
+  clearChancellorDrawnCards(): void {
+    this.state.chancellorDrawnCards = [];
+  }
+  addCardsToDeck(cards: ICard[]): void {
+    cards.reverse().forEach((card) => {
+      this.state.deck.unshift(card);
+    });
+  }
   playCard(
     playerId: string,
     cardType: CardType,
     targetPlayerId?: string,
     additionalData?: CardEffectData[keyof CardEffectData]
   ): CardEffectResult {
-    
     if (this.state.players[this.state.currentPlayerIndex].id !== playerId) {
       throw new Error("Ce n'est pas le tour de ce joueur");
     }
-  
+
     const effect = CardEffectFactory.getEffect(cardType);
-    const result = effect.execute(this, playerId, targetPlayerId, additionalData as never);
-    
-    // Finish the turn after card is played, unless it's a Chancellor action
-    if (!this.state.isChancellorAction) {
+    const result = effect.execute(
+      this,
+      playerId,
+      targetPlayerId,
+      additionalData as never
+    );
+
+    if (
+      !(cardType === CardType.Chancelier && !additionalData) ||
+      (cardType === CardType.Chancelier && this.getState().deck.length === 0)
+    ) {
       this.finishTurn();
-    } else {
-      throw new Error('Chancellor action in progress, turn not finished yet');
     }
-    
     return result;
-    
   }
 
   checkEndOfRound(): void {
+    console.log("=== Checking End of Round ===");
     const activePlayers = this.state.players.filter((p) => !p.isEliminated);
+    console.log(
+      "Active players:",
+      activePlayers.map((p) => ({
+        id: p.id,
+        name: p.name,
+        handValue: p.hand[0]?.value,
+        isEliminated: p.isEliminated,
+      }))
+    );
+    console.log("Deck length:", this.state.deck.length);
+    console.log(
+      "All players have one card:",
+      activePlayers.every((p) => p.hand.length === 1)
+    );
 
     if (
       activePlayers.length === 1 ||
       (this.state.deck.length === 0 &&
         activePlayers.every((p) => p.hand.length === 1))
     ) {
+      console.log(">>> Ending round");
       this.handleRoundEnd(activePlayers);
+    } else {
+      console.log(">>> Round continues");
     }
   }
 
   private handleRoundEnd(activePlayers: IPlayer[]): void {
+    console.log("=== Handling Round End ===");
     // Gestion des Espionnes
     this.handleEspionnes(activePlayers);
 
     // Détermination du gagnant
     const roundWinners = this.determineRoundWinners(activePlayers);
+    console.log(
+      "Round winners:",
+      roundWinners.map((w) => ({
+        id: w.id,
+        name: w.name,
+        cardValue: w.hand[0]?.value,
+      }))
+    );
     this.awardPoints(roundWinners);
 
     // Vérification de la fin du jeu
     if (!this.checkGameEnd()) {
+      console.log(">>> Starting new round");
+
       this.startNewRound();
     }
   }
@@ -196,6 +248,7 @@ export class GameEngine {
   }
 
   finishTurn(): void {
+    console.log("=== Finishing Turn ===");
     if (this.state.isChancellorAction) return;
 
     let nextPlayerIndex = this.state.currentPlayerIndex;
@@ -211,8 +264,10 @@ export class GameEngine {
     );
 
     if (this.state.players.filter((p) => !p.isEliminated).length <= 1) {
+      console.log("Only one or no players active, checking round end");
       this.checkEndOfRound();
     } else {
+      console.log("Setting next player index to:", nextPlayerIndex);
       this.state.currentPlayerIndex = nextPlayerIndex;
       this.state.players[nextPlayerIndex].isProtected = false;
     }

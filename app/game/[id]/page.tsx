@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import { CardSelectionModal } from "@/components/CardSelectionModal";
 import { ChancelierActionModal } from "@/components/ChancelierActionModal";
 import GameTable from "@/components/GameTable";
@@ -24,8 +24,8 @@ const GamePage: React.FC = () => {
     currentPlayer,
     isLoading,
     handlePlayCard,
-    handleChancelierAction
-  } = useGameState({gameId, playerId});
+    handleChancelierAction,
+  } = useGameState({ gameId, playerId });
 
   useEffect(() => {
     const handleCardRevealed = ({
@@ -50,6 +50,12 @@ const GamePage: React.FC = () => {
     }: {
       playerId: string;
     }) => {
+      console.log(
+        "🚀 ~ useEffect ~ chancellorPlayerId:",
+        chancellorPlayerId,
+        playerId
+      );
+
       if (chancellorPlayerId === playerId) {
         modalActions.setIsChancelierModalOpen(true);
       }

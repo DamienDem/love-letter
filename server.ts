@@ -3,6 +3,7 @@ import next from "next";
 import { Server, Socket } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import {
+  CardEffectData,
   CardType,
   ChancellorAction,
   IGameState,
@@ -151,15 +152,9 @@ class SocketEventHandler {
 
       if (gameState) {
         this.io.to(data.gameId).emit("gameUpdated", gameState);
-
-        console.log("🚀 ~ SocketEventHandler ~ handlePlayCard ~ gameState:", {
-          currentPlayerIndex: gameState.currentPlayerIndex,
-          currentPlayerId: gameState.players[gameState.currentPlayerIndex].id
-        })
         if (gameState.roundWinner) {
           this.handleRoundEnd(gameState, data.gameId);
         }
-
         // Gérer les événements spéciaux
         this.handleSpecialCardEffects(data);
       }
@@ -169,6 +164,16 @@ class SocketEventHandler {
   }
 
   private handleSpecialCardEffects(data: PlayCardData): void {
+    const game = this.gameManager.getGameState(data.gameId);
+    const cardReveal = game?.players.find((p) => p.id === data.targetPlayerId)
+      ?.hand[0];
+    if (data.cardType === CardType.Pretre) {
+      this.io.to(data.gameId).emit("cardRevealed", {
+        playerId: data.targetPlayerId,
+        card: cardReveal,
+        sourcePlayerId: data.playerId,
+      });
+    }
     if (data.cardType === CardType.Chancelier && !data.chancellorAction) {
       this.io.to(data.gameId).emit("chancellorAction", {
         playerId: data.playerId,
@@ -226,6 +231,20 @@ class GameManagerImpl implements GameManager {
       pointsToWin: gameData.pointsToWin,
     });
     this.games.set(gameData.gameId, gameEngine);
+  }
+
+  getAdditionalData(
+    cardType: CardType,
+    data: PlayCardData
+  ): CardEffectData[keyof CardEffectData] | undefined {
+    switch (cardType) {
+      case CardType.Garde:
+        return data.guessedCard ? { guessedCard: data.guessedCard } : undefined;
+      case CardType.Chancelier:
+        return data.chancellorAction;
+      default:
+        return undefined;
+    }
   }
 
   joinGame(gameId: string, player: IPlayer): void {
@@ -291,16 +310,13 @@ class GameManagerImpl implements GameManager {
       }
     }
 
-    const additionalData =
-      data.cardType === CardType.Garde
-        ? { guessedCard: data.guessedCard }
-        : data.chancellorAction;
+    const additionalData = this.getAdditionalData(data.cardType, data);
 
     game.playCard(
       data.playerId,
       data.cardType,
       data.targetPlayerId,
-      additionalData as never
+      additionalData
     );
 
     if (!game.getState().actions) {

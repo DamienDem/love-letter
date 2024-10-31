@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import { socket } from "@/lib/socket";
 import { IGameState, IPlayer, CardType } from "@/lib/types";
 
@@ -11,15 +11,26 @@ interface UseGameStateReturn {
   game: IGameState | null;
   currentPlayer: IPlayer | null;
   isLoading: boolean;
-  handlePlayCard: (cardId: string, targetId?: string, guessedCard?: CardType) => void;
-  handleChancelierAction: (action: { selectedCardIndex: number; topCardIndex?: number }) => void;
+  handlePlayCard: (
+    cardId: string,
+    targetId?: string,
+    guessedCard?: CardType
+  ) => void;
+  handleChancelierAction: (action: {
+    selectedCardIndex: number;
+    topCardIndex?: number;
+  }) => void;
 }
 
-export const useGameState = ({ gameId, playerId }: UseGameStateProps): UseGameStateReturn => {
+export const useGameState = ({
+  gameId,
+  playerId,
+}: UseGameStateProps): UseGameStateReturn => {
   const [game, setGame] = useState<IGameState | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<IPlayer | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isChancellorActionInProgress, setIsChancellorActionInProgress] = useState(false);
+  const [isChancellorActionInProgress, setIsChancellorActionInProgress] =
+    useState(false);
 
   useEffect(() => {
     if (!playerId || !gameId) {
@@ -29,25 +40,25 @@ export const useGameState = ({ gameId, playerId }: UseGameStateProps): UseGameSt
     }
 
     const handleGameState = (gameState: IGameState) => {
-      console.log("Game state received:", gameState);
       setGame(gameState);
       updateCurrentPlayer(gameState);
       setIsLoading(false);
-      
+
       // Check if this player needs to perform Chancellor action
-      if (gameState.isChancellorAction && 
-          gameState.players[gameState.currentPlayerIndex].id === playerId && 
-          gameState.chancellorDrawnCards.length > 0) {
+      if (
+        gameState.isChancellorAction &&
+        gameState.players[gameState.currentPlayerIndex].id === playerId &&
+        gameState.chancellorDrawnCards.length > 0
+      ) {
         setIsChancellorActionInProgress(true);
         socket.emit("chancellorAction", { gameId, playerId });
       }
     };
 
     const handleGameUpdated = (updatedGame: IGameState) => {
-      console.log("Game updated:", updatedGame);
       setGame(updatedGame);
       updateCurrentPlayer(updatedGame);
-      
+
       // Only check and start turn if not in chancellor action
       if (!updatedGame.isChancellorAction) {
         checkAndStartTurn(updatedGame);
@@ -64,12 +75,11 @@ export const useGameState = ({ gameId, playerId }: UseGameStateProps): UseGameSt
 
     const checkAndStartTurn = (gameState: IGameState) => {
       if (
-        !gameState.isChancellorAction &&
+        gameState.isChancellorAction &&
         gameState.players[gameState.currentPlayerIndex].id === playerId &&
-        gameState.players.find(p => p.id === playerId)?.hand?.length === 1 &&
+        gameState.players.find((p) => p.id === playerId)?.hand?.length === 1 &&
         !isChancellorActionInProgress
       ) {
-        console.log("Starting turn for player:", playerId);
         socket.emit("startTurn", gameId);
       }
     };
@@ -92,8 +102,8 @@ export const useGameState = ({ gameId, playerId }: UseGameStateProps): UseGameSt
   }, [playerId, gameId, isChancellorActionInProgress]);
 
   const handlePlayCard = (
-    cardId: string, 
-    targetId?: string, 
+    cardId: string,
+    targetId?: string,
     guessedCard?: CardType
   ) => {
     if (!currentPlayer) return;
@@ -102,7 +112,6 @@ export const useGameState = ({ gameId, playerId }: UseGameStateProps): UseGameSt
     if (selectedCard) {
       if (selectedCard.type === CardType.Chancelier) {
         // Initial Chancellor card play
-        console.log("Playing Chancellor card");
         socket.emit("playCard", {
           gameId,
           playerId,
@@ -110,11 +119,6 @@ export const useGameState = ({ gameId, playerId }: UseGameStateProps): UseGameSt
         });
         setIsChancellorActionInProgress(true);
       } else {
-        console.log("Playing card:", {
-          cardType: selectedCard.type,
-          targetId,
-          guessedCard
-        });
         socket.emit("playCard", {
           gameId,
           playerId,
@@ -147,6 +151,6 @@ export const useGameState = ({ gameId, playerId }: UseGameStateProps): UseGameSt
     currentPlayer,
     isLoading,
     handlePlayCard,
-    handleChancelierAction
+    handleChancelierAction,
   };
 };
