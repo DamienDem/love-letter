@@ -1,8 +1,9 @@
-import { Card as GameCard } from '@/lib/gameLogic';
+'use client';
+import { ICard } from '@/lib/types';
 import React from 'react';
 
 interface CardProps {
-  card: GameCard | null;
+  card: ICard | null;
   visible: boolean;
 }
 

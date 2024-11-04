@@ -1,6 +1,7 @@
-//component to create a new game
-"use client";
-import React, { useState, useEffect } from "react";
+//components/CreateGameForm.tsx
+'use client';
+import React from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,81 +11,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRouter } from "next/navigation";
-import { v4 as uuidv4 } from "uuid";
-import { socket } from "@/lib/socket";
+import { useSocketConnection } from "@/hooks/useSocketConnection";
+import { useGameForm } from "@/hooks/useGameForm";
 
-interface FormData {
-  gameName: string;
-  numPlayers: string;
-  creatorName: string;
+
+
+
+interface FormFieldProps {
+  label: string;
+  description: string;
+  children: React.ReactNode;
 }
 
+// Constants
+const PLAYER_COUNTS = [2, 3, 4, 5, 6] as const;
+
+// Components
+const FormField: React.FC<FormFieldProps> = ({ label, description, children }) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700">
+      {label}
+    </label>
+    {children}
+    <p className="mt-2 text-sm text-gray-500">
+      {description}
+    </p>
+  </div>
+);
+
+const GameFormDivider: React.FC = () => (
+  <div className="text-center">
+    <span className="text-gray-500">ou</span>
+  </div>
+);
+
+// Main Component
 export default function CreateGameForm() {
   const router = useRouter();
-  const [formData, setFormData] = useState<FormData>({
-    gameName: "",
-    numPlayers: "2",
-    creatorName: "",
-  });
-  const [isConnected, setIsConnected] = useState(false);
+  const { isConnected } = useSocketConnection();
+  const { 
+    formData, 
+    handleInputChange, 
+    handleSelectChange, 
+    handleCreateGame 
+  } = useGameForm(router);
 
-  useEffect(() => {
-    if (socket.connected) {
-      onConnect();
-    }
-
-    function onConnect() {
-      setIsConnected(true);
-     
-    }
-
-    function onDisconnect() {
-      setIsConnected(false);
-    }
-
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-
-    return () => {
-      if (socket) {
-        socket.off("connect", onConnect);
-        socket.off("disconnect", onDisconnect);
-      }
-    };
-  }, []);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSelectChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, numPlayers: value }));
-  };
-
-  const handleCreateGame = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const gameId = uuidv4();
-    const playerId = uuidv4();
-
-    const gameData = {
-      gameId: gameId,
-      players: [{ id: playerId, name: formData.creatorName }],
-      maxPlayers: parseInt(formData.numPlayers),
-      pointsToWin: 3, // Vous pouvez ajuster cela si nécessaire
-    };
-    
-    socket.emit("createGame", gameData);
-    router.push(`/game/${gameId}?playerId=${playerId}`);
-  };
-
-  const handleJoinGame = () => {
-    router.push("/join-game");
-  };
-
-  if (!isConnected) return <div>Non connectés</div>;
+  if (!isConnected) {
+    return <div className="text-center p-4">Non connecté au serveur</div>;
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -92,13 +66,10 @@ export default function CreateGameForm() {
         <h2 className="text-2xl font-bold mb-6 text-center">Love Letter</h2>
         <div className="space-y-6">
           <form onSubmit={handleCreateGame} className="space-y-6">
-            <div>
-              <label
-                htmlFor="gameName"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Nom de la partie
-              </label>
+            <FormField
+              label="Nom de la partie"
+              description="Choisissez un nom unique pour votre partie."
+            >
               <Input
                 id="gameName"
                 name="gameName"
@@ -107,18 +78,12 @@ export default function CreateGameForm() {
                 placeholder="Ma partie de Love Letter"
                 className="mt-1 w-full"
               />
-              <p className="mt-2 text-sm text-gray-500">
-                Choisissez un nom unique pour votre partie.
-              </p>
-            </div>
+            </FormField>
 
-            <div>
-              <label
-                htmlFor="numPlayers"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Nombre de joueurs
-              </label>
+            <FormField
+              label="Nombre de joueurs"
+              description="Choisissez le nombre de joueurs pour cette partie."
+            >
               <Select
                 onValueChange={handleSelectChange}
                 value={formData.numPlayers}
@@ -127,25 +92,19 @@ export default function CreateGameForm() {
                   <SelectValue placeholder="Sélectionnez le nombre de joueurs" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[2, 3, 4, 5, 6].map((num) => (
+                  {PLAYER_COUNTS.map((num) => (
                     <SelectItem key={num} value={num.toString()}>
                       {num} joueurs
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-2 text-sm text-gray-500">
-                Choisissez le nombre de joueurs pour cette partie.
-              </p>
-            </div>
+            </FormField>
 
-            <div>
-              <label
-                htmlFor="creatorName"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Votre nom
-              </label>
+            <FormField
+              label="Votre nom"
+              description="Entrez votre nom pour cette partie."
+            >
               <Input
                 id="creatorName"
                 name="creatorName"
@@ -154,21 +113,20 @@ export default function CreateGameForm() {
                 placeholder="John Doe"
                 className="mt-1 w-full"
               />
-              <p className="mt-2 text-sm text-gray-500">
-                Entrez votre nom pour cette partie.
-              </p>
-            </div>
+            </FormField>
 
             <Button type="submit" className="w-full">
               Créer une nouvelle partie
             </Button>
           </form>
 
-          <div className="text-center">
-            <span className="text-gray-500">ou</span>
-          </div>
+          <GameFormDivider />
 
-          <Button onClick={handleJoinGame} variant="outline" className="w-full">
+          <Button 
+            onClick={() => router.push("/join-game")} 
+            variant="outline" 
+            className="w-full"
+          >
             Rejoindre une partie existante
           </Button>
         </div>

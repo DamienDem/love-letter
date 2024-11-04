@@ -1,284 +1,404 @@
-//server.ts
 import { createServer } from "http";
 import next from "next";
-import { Server } from "socket.io";
-import {
-  CardType,
-  checkEndOfRound,
-  finishTurn,
-  Game,
-  initializeGame,
-  playCard,
-  PlayerAction,
-  startTurn,
-} from "./lib/gameLogic.js";
+import { Server, Socket } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
+import {
+  CardEffectData,
+  CardType,
+  ChancellorAction,
+  IGameState,
+  IPlayer,
+  IPlayerAction,
+} from "./lib/types";
+import { GameUtils } from "./lib/gameUtils";
+import { GameEngine } from "./lib/gameEngine";
+import { DeckManager } from "./lib/deckManager";
 
-const dev = process.env.NODE_ENV !== "production";
-const hostname = process.env.HOSTNAME || "localhost";
-const port = parseInt(process.env.PORT!) || 3000;
-const app = next({ dev, hostname, port });
-const handler = app.getRequestHandler();
-const games: Game[] = [];
+// Interfaces
+interface GameManager {
+  createGame(gameData: GameCreationData): void;
+  joinGame(gameId: string, player: IPlayer): void;
+  getGameState(gameId: string): IGameState | undefined;
+  handlePlayCard(playCardData: PlayCardData): void;
+  startTurn(gameId: string): void;
+  getAvailableGames(): AvailableGame[];
+}
 
-app.prepare().then(() => {
+interface GameCreationData {
+  gameId: string;
+  players: IPlayer[];
+  maxPlayers: number;
+  pointsToWin: number;
+}
+
+interface PlayCardData {
+  gameId: string;
+  playerId: string;
+  cardType: CardType;
+  targetPlayerId?: string;
+  guessedCard?: CardType;
+  chancellorAction?: ChancellorAction;
+}
+
+interface AvailableGame {
+  id: string;
+  name: string;
+  players: number;
+  maxPlayers: number;
+}
+
+interface RoundEndData {
+  winner: IPlayer | null;
+  espionneWinner: IPlayer | undefined;
+  activePlayers: IPlayer[];
+}
+
+// Gestionnaire d'événements socket
+class SocketEventHandler {
+  constructor(
+    private socket: Socket,
+    private gameManager: GameManager,
+    private io: Server
+  ) {
+    this.initializeEventListeners();
+  }
+
+  private initializeEventListeners(): void {
+    this.socket.on("createGame", this.handleCreateGame.bind(this));
+    this.socket.on("joinGame", this.handleJoinGame.bind(this));
+    this.socket.on("getGameState", this.handleGetGameState.bind(this));
+    this.socket.on("startTurn", this.handleStartTurn.bind(this));
+    this.socket.on("playCard", this.handlePlayCard.bind(this));
+    this.socket.on(
+      "getAvailableGames",
+      this.handleGetAvailableGames.bind(this)
+    );
+    this.socket.on("restartGame", this.handleRestartGame.bind(this));
+    this.socket.on("disconnect", this.handleDisconnect.bind(this));
+  }
+
+  private handleRestartGame({ gameId }: { gameId: string }): void {
+    try {
+      this.gameManager.getGameState(gameId)?.players.forEach((player) => {
+        player.hand = [DeckManager.drawCard(this.gameManager.getGameState(gameId)!.deck)!];
+        player.isEliminated = false;
+        player.points = 0;
+        player.isProtected = false;
+      });
+      this.gameManager.getGameState(gameId)!.roundWinner = null;
+      this.gameManager.getGameState(gameId)!.gameWinner = [];
+      this.gameManager.getGameState(gameId)!.playedEspionnes = [];
+      this.gameManager.getGameState(gameId)!.chancellorDrawnCards = [];
+      this.gameManager.getGameState(gameId)!.currentRound = 1;
+      this.gameManager.getGameState(gameId)!.isChancellorAction = false;
+      this.gameManager.getGameState(gameId)!.actions = [];
+      this.gameManager.startTurn(gameId);
+      this.io.to(gameId).emit("gameUpdated", this.gameManager.getGameState(gameId));
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+  private handleCreateGame({
+    gameId,
+    players,
+    maxPlayers,
+    pointsToWin = 3,
+  }: GameCreationData): void {
+    try {
+      this.gameManager.createGame({ gameId, players, maxPlayers, pointsToWin });
+      this.socket.join(gameId);
+      this.io
+        .to(gameId)
+        .emit("gameCreated", this.gameManager.getGameState(gameId));
+      this.io.emit("gameListUpdated", this.gameManager.getAvailableGames());
+    } catch (error) {
+      console.log("Error creating game");
+
+      this.handleError(error);
+    }
+  }
+
+  private handleJoinGame(gameId: string, player: IPlayer): void {
+    try {
+      this.gameManager.joinGame(gameId, player);
+      this.socket.join(gameId);
+
+      const gameState = this.gameManager.getGameState(gameId);
+      if (gameState) {
+        if (gameState.players.length === gameState.maxPlayers) {
+          this.io.to(gameId).emit("gameStarted", gameState);
+        } else {
+          this.io.to(gameId).emit("playerJoined", { gameId, player });
+        }
+
+        this.io.to(gameId).emit("gameUpdated", gameState);
+        this.io.emit("gameListUpdated", this.gameManager.getAvailableGames());
+      }
+    } catch (error) {
+      console.log("Error joining game");
+
+      this.handleError(error);
+    }
+  }
+
+  private handleGetGameState(gameId: string): void {
+    const gameState = this.gameManager.getGameState(gameId);
+    if (gameState) {
+      this.socket.emit("gameState", gameState);
+    } else {
+      this.socket.emit("error", "Game not found");
+    }
+  }
+
+  private handleStartTurn(gameId: string): void {
+    try {
+      this.gameManager.startTurn(gameId);
+      const gameState = this.gameManager.getGameState(gameId);
+
+      if (gameState) {
+        this.io.to(gameId).emit("gameUpdated", gameState);
+
+        console.log(
+          "🚀 ~ SocketEventHandler ~ handleStartTurn ~ gameState:",
+          gameState.currentPlayerIndex
+        );
+
+        if (gameState.roundWinner) {
+          this.handleRoundEnd(gameState, gameId);
+        }
+      }
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+
+  private handlePlayCard(data: PlayCardData): void {
+    try {
+      this.gameManager.handlePlayCard(data);
+      const gameState = this.gameManager.getGameState(data.gameId);
+
+      if (gameState) {
+        this.io.to(data.gameId).emit("gameUpdated", gameState);
+        console.log(
+          "🚀 ~ SocketEventHandler ~ handlePlayCard ~ gameState:",
+          gameState.currentPlayerIndex
+        );
+
+        if (gameState.roundWinner) {
+          this.handleRoundEnd(gameState, data.gameId);
+        }
+        // Gérer les événements spéciaux
+        this.handleSpecialCardEffects(data);
+      }
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+
+  private handleSpecialCardEffects(data: PlayCardData): void {
+    const game = this.gameManager.getGameState(data.gameId);
+    const cardReveal = game?.players.find((p) => p.id === data.targetPlayerId)
+      ?.hand[0];
+    if (data.cardType === CardType.Pretre) {
+      this.io.to(data.gameId).emit("cardRevealed", {
+        playerId: data.targetPlayerId,
+        card: cardReveal,
+        sourcePlayerId: data.playerId,
+      });
+    }
+    if (data.cardType === CardType.Chancelier && !data.chancellorAction) {
+      this.io.to(data.gameId).emit("chancellorAction", {
+        playerId: data.playerId,
+      });
+    }
+  }
+
+  private handleRoundEnd(gameState: IGameState, gameId: string): void {
+    const roundEndData: RoundEndData = {
+      winner: gameState.roundWinner,
+      espionneWinner: gameState.players.find(
+        (p) => gameState.playedEspionnes.includes(p.id) && !p.isEliminated
+      ),
+      activePlayers: GameUtils.getActivePlayers(gameState),
+    };
+
+    this.io.to(gameId).emit("roundEnded", roundEndData);
+
+    if (gameState.gameWinner) {
+      this.io.to(gameId).emit("gameEnded", {
+        winner: gameState.gameWinner,
+      });
+    } else {
+      this.io.to(gameId).emit("newRoundStarted", gameState);
+    }
+  }
+
+  private handleGetAvailableGames(): void {
+    this.socket.emit("availableGames", this.gameManager.getAvailableGames());
+  }
+
+  private handleDisconnect(): void {
+    console.log("Client disconnected");
+    // Implémenter la logique de déconnexion si nécessaire
+  }
+
+  private handleError(error: unknown): void {
+    const errorMessage =
+      error instanceof Error ? error.message : "An unknown error occurred";
+    this.socket.emit("error", errorMessage);
+    console.error("Error:", errorMessage);
+  }
+}
+
+// Gestionnaire de jeu
+class GameManagerImpl implements GameManager {
+  private games: Map<string, GameEngine> = new Map();
+
+  createGame(gameData: GameCreationData): void {
+    const gameEngine = new GameEngine({
+      id: gameData.gameId,
+      name: `Game ${gameData.gameId}`,
+      players: gameData.players,
+      maxPlayers: gameData.maxPlayers,
+      pointsToWin: gameData.pointsToWin,
+    });
+    this.games.set(gameData.gameId, gameEngine);
+  }
+
+  getAdditionalData(
+    cardType: CardType,
+    data: PlayCardData
+  ): CardEffectData[keyof CardEffectData] | undefined {
+    switch (cardType) {
+      case CardType.Garde:
+        return data.guessedCard ? { guessedCard: data.guessedCard } : undefined;
+      case CardType.Chancelier:
+        return data.chancellorAction;
+      default:
+        return undefined;
+    }
+  }
+
+  joinGame(gameId: string, player: IPlayer): void {
+    const game = this.games.get(gameId);
+    if (!game) {
+      throw new Error("Game not found");
+    }
+
+    const gameState = game.getState();
+    if (gameState.players.length >= gameState.maxPlayers) {
+      throw new Error("Game is full");
+    }
+
+    gameState.players.push({
+      ...player,
+      hand: [DeckManager.drawCard(gameState.deck)!],
+      isEliminated: false,
+      points: 0,
+      isProtected: false,
+    });
+  }
+
+  startTurn(gameId: string): void {
+    const game = this.games.get(gameId);
+    if (!game) {
+      throw new Error("Game not found");
+    }
+
+    game.startTurn();
+  }
+
+  getGameState(gameId: string): IGameState | undefined {
+    const game = this.games.get(gameId);
+    return game?.getState();
+  }
+
+  handlePlayCard(data: PlayCardData): void {
+    const game = this.games.get(data.gameId);
+    if (!game) {
+      throw new Error("Game not found");
+    }
+
+    const action: IPlayerAction = {
+      id: uuidv4(),
+      playerId: data.playerId,
+      cardType: data.cardType,
+      targetPlayerId: data.targetPlayerId,
+      guessedCard: data.guessedCard,
+    };
+
+    // Vérifier le résultat de l'action Garde
+    if (
+      data.cardType === CardType.Garde &&
+      data.targetPlayerId &&
+      data.guessedCard
+    ) {
+      const gameState = game.getState();
+      const targetPlayer = gameState.players.find(
+        (p) => p.id === data.targetPlayerId
+      );
+      if (targetPlayer && targetPlayer.hand[0]) {
+        action.success = targetPlayer.hand[0].type === data.guessedCard;
+      }
+    }
+
+    const additionalData = this.getAdditionalData(data.cardType, data);
+
+    game.playCard(
+      data.playerId,
+      data.cardType,
+      data.targetPlayerId,
+      additionalData
+    );
+
+    if (!game.getState().actions) {
+      game.getState().actions = [];
+    }
+    game.getState().actions.push(action);
+  }
+
+  getAvailableGames(): AvailableGame[] {
+    const availableGames: AvailableGame[] = [];
+    this.games.forEach((game, id) => {
+      const state = game.getState();
+      if (state.players.length < state.maxPlayers) {
+        availableGames.push({
+          id,
+          name: state.name,
+          players: state.players.length,
+          maxPlayers: state.maxPlayers,
+        });
+      }
+    });
+    return availableGames;
+  }
+}
+
+// Configuration et démarrage du serveur
+async function startServer() {
+  const dev = process.env.NODE_ENV !== "production";
+  const hostname = process.env.HOSTNAME || "localhost";
+  const port = parseInt(process.env.PORT!) || 3000;
+
+  const app = next({ dev, hostname, port });
+  const handler = app.getRequestHandler();
+
+  await app.prepare();
+
   const httpServer = createServer(handler);
   const io = new Server(httpServer, {
     cors: {
       origin: process.env.NEXT_PUBLIC_APP_URL,
       methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-      credentials: true
+      credentials: true,
     },
   });
 
+  const gameManager = new GameManagerImpl();
+
   io.on("connection", (socket) => {
     console.log("New client connected");
-
-    socket.on(
-      "createGame",
-      ({ gameId, players, maxPlayers, pointsToWin = 3 }) => {
-        const game = {
-          id: gameId,
-          name: `Game ${gameId}`,
-          players,
-          maxPlayers,
-          pointsToWin,
-          currentPlayerIndex: 0,
-          deck: [],
-          discardPile: [],
-          roundWinner: null,
-          gameWinner: null,
-          playedEspionnes: [],
-          hiddenCard: null,
-          chancellorDrawnCards: [],
-          currentRound: 1,
-          isChancellorAction: false,
-          actions: [],
-        };
-        games.push(game);
-        socket.join(gameId);
-        io.to(gameId).emit("gameCreated", game);
-        io.emit("gameListUpdated", getAvailableGames());
-      }
-    );
-
-    socket.on("joinGame", (gameId, player) => {
-      const gameIndex = games.findIndex((g) => g.id === gameId);
-
-      if (gameIndex !== -1) {
-        let game = games[gameIndex];
-
-        if (game.players.length < game.maxPlayers) {
-          game.players.push(player);
-          socket.join(gameId);
-
-          if (game.players.length === game.maxPlayers) {
-            console.log("Game is full, starting game");
-            game = initializeGame(game);
-            games[gameIndex] = game;
-            io.to(gameId).emit("gameStarted", game);
-          } else {
-            io.to(gameId).emit("playerJoined", { gameId, player });
-          }
-
-          io.to(gameId).emit("gameUpdated", game);
-          io.emit("gameListUpdated", getAvailableGames());
-        } else {
-          socket.emit("joinError", "Game is full");
-        }
-      } else {
-        socket.emit("joinError", "Game not found");
-      }
-    });
-
-    socket.on("getGameState", (gameId) => {
-      const game = games.find((g) => g.id === gameId);
-      if (game) {
-        socket.emit("gameState", game);
-      } else {
-        socket.emit("error", "Game not found");
-      }
-    });
-    function handleRoundEnd(game: Game, gameId: string, gameIndex: number) {
-      console.log("Round ended");
-      io.to(gameId).emit("roundEnded", {
-        winner: game.roundWinner,
-        espionneWinner: game.players.find(
-          (p) => game.playedEspionnes.includes(p.id) && !p.isEliminated
-        ),
-        activePlayers: game.players.filter((p) => !p.isEliminated),
-      });
-
-      if (game.gameWinner) {
-        console.log("Game ended");
-        io.to(gameId).emit("gameEnded", { winner: game.gameWinner });
-        games.splice(gameIndex, 1);
-      } else {
-        console.log("New round started");
-        io.to(gameId).emit("newRoundStarted", game);
-      }
-    }
-    socket.on("startTurn", (gameId) => {
-      const gameIndex = games.findIndex((g) => g.id === gameId);
-      if (gameIndex !== -1) {
-        let game = games[gameIndex];
-        const currentPlayer = game.players[game.currentPlayerIndex];
-        currentPlayer.isProtected = false;
-
-        // Vérifier si le joueur actuel n'a qu'une seule carte en main
-        if (currentPlayer.hand.length === 1) {
-          console.log("Player has only one card, starting turn");
-          game = startTurn(game);
-          game = checkEndOfRound(game);
-          games[gameIndex] = game;
-
-          console.log("Emitting gameUpdated after startTurn");
-          io.to(gameId).emit("gameUpdated", game);
-
-          if (game.roundWinner) {
-            handleRoundEnd(game, gameId, gameIndex);
-          }
-        } else {
-          console.log(
-            "Player already has more than one card, not starting turn"
-          );
-        }
-      } else {
-        console.log("Game not found:", gameId);
-        socket.emit("error", "Game not found");
-      }
-    });
-
-    socket.on(
-      "playCard",
-      async ({
-        gameId,
-        playerId,
-        cardType,
-        targetPlayerId,
-        guessedCard,
-        chancellorAction,
-      }) => {
-        const gameIndex = games.findIndex((g) => g.id === gameId);
-        if (gameIndex !== -1) {
-          let game = games[gameIndex];
-          try {
-            const action: PlayerAction = {
-              id: uuidv4(),
-              playerId,
-              cardType,
-              targetPlayerId,
-              guessedCard,
-            };
-            console.log("Processing playCard:", {
-              cardType,
-              playerId,
-              hasChancellorAction: !!chancellorAction,
-              isChancellorAction: game.isChancellorAction,
-              currentPlayerIndex: game.currentPlayerIndex,
-              currentPlayerId: game.players[game.currentPlayerIndex].id,
-            });
-
-            if (cardType === CardType.Garde && targetPlayerId && guessedCard) {
-              const targetPlayer = game.players.find(p => p.id === targetPlayerId);
-              if (targetPlayer && targetPlayer.hand[0]) {
-                action.success = targetPlayer.hand[0].type === guessedCard;
-              }
-            }
-    
-            // Ajouter l'action à l'historique
-            if (!game.actions) game.actions = [];
-            game.actions.push(action);
-            // Action du Chancelier en deux phases
-            if (cardType === CardType.Chancelier) {
-              // Première phase : jouer la carte
-              if (!chancellorAction) {
-                console.log("Phase initiale du Chancelier");
-                const result = playCard(
-                  game,
-                  playerId,
-                  cardType,
-                  targetPlayerId,
-                  guessedCard
-                );
-                game = result as Game;
-
-                // Émettre l'événement pour ouvrir le modal
-                io.to(gameId).emit("chancellorAction", { playerId });
-              }
-              // Deuxième phase : choisir les cartes
-              else {
-                console.log("Phase finale du Chancelier");
-                const result = playCard(
-                  game,
-                  playerId,
-                  cardType,
-                  targetPlayerId,
-                  guessedCard,
-                  chancellorAction
-                );
-                game = result as Game;
-
-                // Seulement maintenant on peut finir le tour
-                game = finishTurn(game);
-                game = checkEndOfRound(game);
-              }
-            }
-            // Autres cartes
-            else {
-              const result = playCard(
-                game,
-                playerId,
-                cardType,
-                targetPlayerId,
-                guessedCard
-              );
-
-              if ("targetCard" in result) {
-                game = result.game;
-                // Modifier l'émission de l'événement pour inclure le sourcePlayerId
-                io.to(gameId).emit("cardRevealed", {
-                  playerId: targetPlayerId,
-                  card: result.targetCard,
-                  sourcePlayerId: playerId, // Ajouter l'ID du joueur qui a joué le Prêtre
-                });
-              } else {
-                game = result;
-              }
-
-              game = finishTurn(game);
-              game = checkEndOfRound(game);
-            }
-
-            // Mettre à jour le jeu
-            games[gameIndex] = game;
-            io.to(gameId).emit("gameUpdated", game);
-            games[gameIndex] = game;
-            io.to(gameId).emit("gameUpdated", game);
-
-            if (game.roundWinner) {
-              handleRoundEnd(game, gameId, gameIndex);
-            }
-          } catch (error) {
-            console.error("Error in playCard:", error);
-            if (error instanceof Error) {
-              socket.emit("error", error.message);
-            } else {
-              socket.emit("error", "An unknown error occurred");
-            }
-          }
-        }
-      }
-    );
-    socket.on("getAvailableGames", () => {
-      socket.emit("availableGames", getAvailableGames());
-    });
-
-    socket.on("disconnect", () => {
-      console.log("Client disconnected");
-      // Gérer la déconnexion du joueur ici
-      // Par exemple, rechercher le joueur dans les jeux et le retirer si nécessaire
-    });
+    new SocketEventHandler(socket, gameManager, io);
   });
 
   httpServer
@@ -289,15 +409,6 @@ app.prepare().then(() => {
     .listen(port, () => {
       console.log(`> Ready on http://${hostname}:${port}`);
     });
-});
-
-function getAvailableGames() {
-  return games
-    .filter((g) => g.players.length < g.maxPlayers)
-    .map((g) => ({
-      id: g.id,
-      name: g.name,
-      players: g.players.length,
-      maxPlayers: g.maxPlayers,
-    }));
 }
+
+startServer().catch(console.error);

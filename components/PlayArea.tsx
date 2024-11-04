@@ -1,9 +1,11 @@
+'use client'
 import React from "react";
 import Card from "./Card";
-import { Player } from "@/lib/gameLogic";
+import { IPlayer } from "@/lib/types";
+
 
 interface PlayerAreaProps {
-  player: Player;
+  player: IPlayer;
   isCurrentPlayer: boolean;
   isActivePlayer: boolean;
   onCardClick: () => void;
