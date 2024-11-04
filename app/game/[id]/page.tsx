@@ -1,6 +1,7 @@
 "use client";
 import { CardSelectionModal } from "@/components/CardSelectionModal";
 import { ChancelierActionModal } from "@/components/ChancelierActionModal";
+import GameOverModal from "@/components/GameOverModal";
 import GameTable from "@/components/GameTable";
 import PlayerActions from "@/components/PlayerActions";
 import { PriestEffectModal } from "@/components/PriestEffectModal";
@@ -50,22 +51,21 @@ const GamePage: React.FC = () => {
     }: {
       playerId: string;
     }) => {
-      console.log(
-        "🚀 ~ useEffect ~ chancellorPlayerId:",
-        chancellorPlayerId,
-        playerId
-      );
-
       if (chancellorPlayerId === playerId) {
         modalActions.setIsChancelierModalOpen(true);
       }
     };
 
+    const handleGameOver = () => {
+      modalActions.setIsGameOverModalOpen(true);
+    };
     socket.on("cardRevealed", handleCardRevealed);
     socket.on("chancellorAction", handleChancellorAction);
+    socket.on("gameOver", handleGameOver);
 
     return () => {
       socket.off("cardRevealed", handleCardRevealed);
+      socket.off("gameOver", handleGameOver);
       socket.off("chancellorAction", handleChancellorAction);
     };
   }, [playerId, modalActions]);
@@ -76,6 +76,10 @@ const GamePage: React.FC = () => {
       modalActions.setSelectedCardId(cardId);
       modalActions.setIsPlayCardModalOpen(true);
     }
+  };
+  const handlePlayAgain = () => {
+    socket.emit("restartGame", { gameId });
+    modalActions.setIsGameOverModalOpen(false);
   };
 
   if (isLoading) {
@@ -137,6 +141,11 @@ const GamePage: React.FC = () => {
             modalContext={modalContext}
             chancellorDrawnCards={game.chancellorDrawnCards}
             onFinishAction={handleChancelierAction}
+          />
+          <GameOverModal
+            modalContext={modalContext}
+            winners={game.gameWinner}
+            onPlayAgain={handlePlayAgain}
           />
         </>
       ) : (

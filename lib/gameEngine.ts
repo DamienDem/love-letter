@@ -38,7 +38,7 @@ export class GameEngine {
       discardPile: [],
       currentPlayerIndex: 0,
       roundWinner: null,
-      gameWinner: null,
+      gameWinner: [],
       playedEspionnes: [],
       hiddenCard,
       chancellorDrawnCards: [],
@@ -73,17 +73,13 @@ export class GameEngine {
   }
 
   startTurn(): void {
-    console.log("=== Starting Turn ===");
     if (this.getCurrentPlayer().isEliminated) {
       this.finishTurn();
       this.startTurn();
       return;
     }
 
-    console.log("deck length:", this.state.deck.length);
-
     if (this.state.deck.length === 0) {
-      console.log("Deck is empty, checking end of round");
       this.checkEndOfRound();
       return;
     }
@@ -91,7 +87,7 @@ export class GameEngine {
     const currentPlayer = this.getCurrentPlayer();
     currentPlayer.isProtected = false;
     const newCard = DeckManager.drawCard(this.state.deck);
-    console.log("Drew new card:", newCard?.type);
+
     if (newCard) currentPlayer.hand.push(newCard);
   }
 
@@ -140,56 +136,32 @@ export class GameEngine {
   }
 
   checkEndOfRound(): void {
-    console.log("=== Checking End of Round ===");
     const activePlayers = this.state.players.filter((p) => !p.isEliminated);
-    console.log(
-      "Active players:",
-      activePlayers.map((p) => ({
-        id: p.id,
-        name: p.name,
-        handValue: p.hand[0]?.value,
-        isEliminated: p.isEliminated,
-      }))
-    );
-    console.log("Deck length:", this.state.deck.length);
-    console.log(
-      "All players have one card:",
-      activePlayers.every((p) => p.hand.length === 1)
-    );
 
     if (
       activePlayers.length === 1 ||
       (this.state.deck.length === 0 &&
         activePlayers.every((p) => p.hand.length === 1))
     ) {
-      console.log(">>> Ending round");
       this.handleRoundEnd(activePlayers);
-    } else {
-      console.log(">>> Round continues");
     }
   }
 
   private handleRoundEnd(activePlayers: IPlayer[]): void {
-    console.log("=== Handling Round End ===");
     // Gestion des Espionnes
     this.handleEspionnes(activePlayers);
 
     // Détermination du gagnant
     const roundWinners = this.determineRoundWinners(activePlayers);
-    console.log(
-      "Round winners:",
-      roundWinners.map((w) => ({
-        id: w.id,
-        name: w.name,
-        cardValue: w.hand[0]?.value,
-      }))
-    );
+
     this.awardPoints(roundWinners);
 
+    console.log(
+      "🚀 ~ GameEngine ~ handleRoundEnd ~ checkGameEnd:",
+      this.checkGameEnd()
+    );
     // Vérification de la fin du jeu
     if (!this.checkGameEnd()) {
-      console.log(">>> Starting new round");
-
       this.startNewRound();
     }
   }
@@ -221,7 +193,7 @@ export class GameEngine {
       (p) => p.points >= this.state.pointsToWin
     );
     if (winners.length > 0) {
-      this.state.gameWinner = winners[0];
+      this.state.gameWinner = winners;
       return true;
     }
     return false;
@@ -248,7 +220,6 @@ export class GameEngine {
   }
 
   finishTurn(): void {
-    console.log("=== Finishing Turn ===");
     if (this.state.isChancellorAction) return;
 
     let nextPlayerIndex = this.state.currentPlayerIndex;
@@ -264,10 +235,8 @@ export class GameEngine {
     );
 
     if (this.state.players.filter((p) => !p.isEliminated).length <= 1) {
-      console.log("Only one or no players active, checking round end");
       this.checkEndOfRound();
     } else {
-      console.log("Setting next player index to:", nextPlayerIndex);
       this.state.currentPlayerIndex = nextPlayerIndex;
       this.state.players[nextPlayerIndex].isProtected = false;
     }

@@ -73,9 +73,31 @@ class SocketEventHandler {
       "getAvailableGames",
       this.handleGetAvailableGames.bind(this)
     );
+    this.socket.on("restartGame", this.handleRestartGame.bind(this));
     this.socket.on("disconnect", this.handleDisconnect.bind(this));
   }
 
+  private handleRestartGame({ gameId }: { gameId: string }): void {
+    try {
+      this.gameManager.getGameState(gameId)?.players.forEach((player) => {
+        player.hand = [DeckManager.drawCard(this.gameManager.getGameState(gameId)!.deck)!];
+        player.isEliminated = false;
+        player.points = 0;
+        player.isProtected = false;
+      });
+      this.gameManager.getGameState(gameId)!.roundWinner = null;
+      this.gameManager.getGameState(gameId)!.gameWinner = [];
+      this.gameManager.getGameState(gameId)!.playedEspionnes = [];
+      this.gameManager.getGameState(gameId)!.chancellorDrawnCards = [];
+      this.gameManager.getGameState(gameId)!.currentRound = 1;
+      this.gameManager.getGameState(gameId)!.isChancellorAction = false;
+      this.gameManager.getGameState(gameId)!.actions = [];
+      this.gameManager.startTurn(gameId);
+      this.io.to(gameId).emit("gameUpdated", this.gameManager.getGameState(gameId));
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
   private handleCreateGame({
     gameId,
     players,
@@ -136,6 +158,11 @@ class SocketEventHandler {
       if (gameState) {
         this.io.to(gameId).emit("gameUpdated", gameState);
 
+        console.log(
+          "🚀 ~ SocketEventHandler ~ handleStartTurn ~ gameState:",
+          gameState.currentPlayerIndex
+        );
+
         if (gameState.roundWinner) {
           this.handleRoundEnd(gameState, gameId);
         }
@@ -152,6 +179,11 @@ class SocketEventHandler {
 
       if (gameState) {
         this.io.to(data.gameId).emit("gameUpdated", gameState);
+        console.log(
+          "🚀 ~ SocketEventHandler ~ handlePlayCard ~ gameState:",
+          gameState.currentPlayerIndex
+        );
+
         if (gameState.roundWinner) {
           this.handleRoundEnd(gameState, data.gameId);
         }

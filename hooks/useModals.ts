@@ -11,6 +11,7 @@ export const useModals = () => {
   const [revealedCard, setRevealedCard] = useState<ICard | null>(null);
   const [targetPlayer, setTargetPlayer] = useState<string>("");
   const [priestPlayerId, setPriestPlayerId] = useState<string | null>(null);
+  const [isGameOverModalOpen, setIsGameOverModalOpen] = useState(false);
 
   const closeAllModals = () => {
     setIsPlayCardModalOpen(false);
@@ -29,6 +30,7 @@ export const useModals = () => {
       revealedCard,
       targetPlayer,
       priestPlayerId,
+      isGameOverModalOpen,
     },
     modalActions: {
       setIsPlayCardModalOpen,
@@ -39,6 +41,7 @@ export const useModals = () => {
       setTargetPlayer,
       setPriestPlayerId,
       closeAllModals,
+      setIsGameOverModalOpen,
     },
   };
 };

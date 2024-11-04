@@ -1,15 +1,25 @@
-'use client';
-import { useState, useEffect } from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+"use client";
+import { useState, useEffect } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { CardType, IPlayer, ModalContextProps } from '@/lib/types';
-import { BaseGameModal } from './BaseGameModal';
+import { CardType, IPlayer, ModalContextProps } from "@/lib/types";
+import { BaseGameModal } from "./BaseGameModal";
 
 interface CardSelectionModalProps {
   modalContext: ModalContextProps;
   currentPlayer: IPlayer;
   players: IPlayer[];
-  onPlayCard: (cardId: string, targetId?: string, guessedCard?: CardType) => void;
+  onPlayCard: (
+    cardId: string,
+    targetId?: string,
+    guessedCard?: CardType
+  ) => void;
 }
 
 const cardsRequiringTarget = [
@@ -31,15 +41,19 @@ export const CardSelectionModal: React.FC<CardSelectionModalProps> = ({
   const [guessedCard, setGuessedCard] = useState<CardType | null>(null);
 
   const selectedCard = currentPlayer.hand.find(
-    card => card.id === modalStates.selectedCardId
+    (card) => card.id === modalStates.selectedCardId
   );
 
-  const requiresTarget = selectedCard && cardsRequiringTarget.includes(selectedCard.type);
+  const requiresTarget =
+    selectedCard && cardsRequiringTarget.includes(selectedCard.type);
   const isGuardSelected = selectedCard?.type === CardType.Garde;
-  
-  const targetablePlayers = players.filter(
-    p => p.id !== currentPlayer.id && !p.isEliminated && !p.isProtected
-  );
+
+  const targetablePlayers =
+    selectedCard?.type === CardType.Prince
+      ? players.filter((p) => !p.isEliminated && !p.isProtected)
+      : players.filter(
+          (p) => p.id !== currentPlayer.id && !p.isEliminated && !p.isProtected
+        );
   const canTargetPlayers = targetablePlayers.length > 0;
 
   useEffect(() => {

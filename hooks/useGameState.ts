@@ -56,6 +56,8 @@ export const useGameState = ({
     };
 
     const handleGameUpdated = (updatedGame: IGameState) => {
+      console.log("🚀 ~ handleGameUpdated ~ updatedGame:", updatedGame)
+      
       setGame(updatedGame);
       updateCurrentPlayer(updatedGame);
 
@@ -75,7 +77,7 @@ export const useGameState = ({
 
     const checkAndStartTurn = (gameState: IGameState) => {
       if (
-        gameState.isChancellorAction &&
+        !gameState.isChancellorAction &&
         gameState.players[gameState.currentPlayerIndex].id === playerId &&
         gameState.players.find((p) => p.id === playerId)?.hand?.length === 1 &&
         !isChancellorActionInProgress
@@ -135,7 +137,6 @@ export const useGameState = ({
     topCardIndex?: number;
   }) => {
     if (game && currentPlayer) {
-      console.log("Resolving Chancellor action:", action);
       socket.emit("playCard", {
         gameId,
         playerId,

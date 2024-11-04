@@ -1,3 +1,5 @@
+import { Dispatch, SetStateAction } from "react";
+
 // types.ts
 export enum CardType {
   Garde = "Garde",
@@ -48,7 +50,7 @@ export interface IGameState {
     currentPlayerIndex: number;
     maxPlayers: number;
     roundWinner: IPlayer | null;
-    gameWinner: IPlayer | null;
+    gameWinner: IPlayer[];
     playedEspionnes: string[];
     hiddenCard: ICard | null;
     chancellorDrawnCards: ICard[];
@@ -103,6 +105,7 @@ export interface ModalContextProps {
     revealedCard: ICard | null;
     targetPlayer: string;
     priestPlayerId: string | null;
+    isGameOverModalOpen: boolean;
   };
   modalActions: {
     setIsPlayCardModalOpen: (value: boolean) => void;
@@ -113,5 +116,6 @@ export interface ModalContextProps {
     setTargetPlayer: (value: string) => void;
     setPriestPlayerId: (value: string | null) => void;
     closeAllModals: () => void;
+    setIsGameOverModalOpen:Dispatch<SetStateAction<boolean>>
   };
 }

@@ -175,12 +175,13 @@ export class ChancelierEffect extends CardEffect<"chancellor"> {
   ): CardEffectResult {
     const gameState = game.getState();
     const player = game.getPlayer(playerId)!;
-    
 
     // Phase initiale
     if (!chancellorAction) {
       this.validateBasicConditions(game, playerId, CardType.Chancelier);
-      game.startChancellorAction();
+      if (gameState.deck.length > 0) {
+        game.startChancellorAction();
+      }
       game.playCardAndDiscard(playerId, CardType.Chancelier);
 
       if (gameState.deck.length === 0) return { gameState };
@@ -239,8 +240,7 @@ export class ChancelierEffect extends CardEffect<"chancellor"> {
 
     game.clearChancellorDrawnCards();
     game.endChancellorAction();
-  
-    
+
     return { gameState };
   }
 }
