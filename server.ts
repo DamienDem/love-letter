@@ -22,6 +22,7 @@ interface GameManager {
   handlePlayCard(playCardData: PlayCardData): void;
   startTurn(gameId: string): void;
   getAvailableGames(): AvailableGame[];
+  restartGame(gameId: string): void;
 }
 
 interface GameCreationData {
@@ -48,7 +49,6 @@ interface AvailableGame {
 }
 
 interface RoundEndData {
-  winner: IPlayer | null;
   espionneWinner: IPlayer | undefined;
   activePlayers: IPlayer[];
 }
@@ -79,21 +79,11 @@ class SocketEventHandler {
 
   private handleRestartGame({ gameId }: { gameId: string }): void {
     try {
-      this.gameManager.getGameState(gameId)?.players.forEach((player) => {
-        player.hand = [DeckManager.drawCard(this.gameManager.getGameState(gameId)!.deck)!];
-        player.isEliminated = false;
-        player.points = 0;
-        player.isProtected = false;
-      });
-      this.gameManager.getGameState(gameId)!.roundWinner = null;
-      this.gameManager.getGameState(gameId)!.gameWinner = [];
-      this.gameManager.getGameState(gameId)!.playedEspionnes = [];
-      this.gameManager.getGameState(gameId)!.chancellorDrawnCards = [];
-      this.gameManager.getGameState(gameId)!.currentRound = 1;
-      this.gameManager.getGameState(gameId)!.isChancellorAction = false;
-      this.gameManager.getGameState(gameId)!.actions = [];
-      this.gameManager.startTurn(gameId);
-      this.io.to(gameId).emit("gameUpdated", this.gameManager.getGameState(gameId));
+      this.gameManager.restartGame(gameId);
+      const updatedGameState = this.gameManager.getGameState(gameId);
+      if (updatedGameState) {
+        this.io.to(gameId).emit("gameUpdated", updatedGameState);
+      }
     } catch (error) {
       this.handleError(error);
     }
@@ -154,17 +144,18 @@ class SocketEventHandler {
     try {
       this.gameManager.startTurn(gameId);
       const gameState = this.gameManager.getGameState(gameId);
+      const activePlayers = gameState?.players.filter((p) => !p.isEliminated);
 
       if (gameState) {
-        this.io.to(gameId).emit("gameUpdated", gameState);
-
-        console.log(
-          "🚀 ~ SocketEventHandler ~ handleStartTurn ~ gameState:",
-          gameState.currentPlayerIndex
-        );
-
-        if (gameState.roundWinner) {
+        if (
+          activePlayers?.length === 1 ||
+          (gameState.deck.length === 0 &&
+            activePlayers?.every((p) => p.hand.length === 1))
+        ) {
           this.handleRoundEnd(gameState, gameId);
+        }
+        if (gameState.gameWinner.length === 0) {
+          this.io.to(gameId).emit("gameUpdated", gameState);
         }
       }
     } catch (error) {
@@ -176,15 +167,15 @@ class SocketEventHandler {
     try {
       this.gameManager.handlePlayCard(data);
       const gameState = this.gameManager.getGameState(data.gameId);
+      const activePlayers = gameState?.players.filter((p) => !p.isEliminated);
 
       if (gameState) {
         this.io.to(data.gameId).emit("gameUpdated", gameState);
-        console.log(
-          "🚀 ~ SocketEventHandler ~ handlePlayCard ~ gameState:",
-          gameState.currentPlayerIndex
-        );
-
-        if (gameState.roundWinner) {
+        if (
+          activePlayers?.length === 1 ||
+          (gameState.deck.length === 0 &&
+            activePlayers?.every((p) => p.hand.length === 1))
+        ) {
           this.handleRoundEnd(gameState, data.gameId);
         }
         // Gérer les événements spéciaux
@@ -214,21 +205,25 @@ class SocketEventHandler {
   }
 
   private handleRoundEnd(gameState: IGameState, gameId: string): void {
+    const activePlayers = GameUtils.getActivePlayers(gameState);
     const roundEndData: RoundEndData = {
-      winner: gameState.roundWinner,
       espionneWinner: gameState.players.find(
         (p) => gameState.playedEspionnes.includes(p.id) && !p.isEliminated
       ),
-      activePlayers: GameUtils.getActivePlayers(gameState),
+      activePlayers: activePlayers,
     };
 
-    this.io.to(gameId).emit("roundEnded", roundEndData);
-
-    if (gameState.gameWinner) {
+    if (gameState.gameWinner.length > 0) {
       this.io.to(gameId).emit("gameEnded", {
         winner: gameState.gameWinner,
       });
-    } else {
+      this.io.to(gameId).emit("gameUpdated", gameState);
+    } else if (
+      activePlayers.length === 1 ||
+      (gameState.deck.length === 0 &&
+        activePlayers.every((p) => p.hand.length === 1))
+    ) {
+      this.io.to(gameId).emit("roundEnded", roundEndData);
       this.io.to(gameId).emit("newRoundStarted", gameState);
     }
   }
@@ -239,7 +234,6 @@ class SocketEventHandler {
 
   private handleDisconnect(): void {
     console.log("Client disconnected");
-    // Implémenter la logique de déconnexion si nécessaire
   }
 
   private handleError(error: unknown): void {
@@ -263,6 +257,31 @@ class GameManagerImpl implements GameManager {
       pointsToWin: gameData.pointsToWin,
     });
     this.games.set(gameData.gameId, gameEngine);
+  }
+
+  restartGame(gameId: string): void {
+    const existingGame = this.games.get(gameId);
+    if (!existingGame) {
+      throw new Error("Game not found");
+    }
+
+    const gameState = existingGame.getState();
+    const newGame = new GameEngine({
+      id: gameState.id,
+      name: gameState.name,
+      players: gameState.players.map((player) => ({
+        id: player.id,
+        name: player.name,
+        hand: [],
+        isEliminated: false,
+        points: 0,
+        isProtected: false,
+      })),
+      maxPlayers: gameState.maxPlayers,
+      pointsToWin: gameState.pointsToWin,
+    });
+    this.games.set(gameId, newGame);
+    newGame.startTurn();
   }
 
   getAdditionalData(
