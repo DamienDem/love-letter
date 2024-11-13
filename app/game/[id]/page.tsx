@@ -56,17 +56,18 @@ const GamePage: React.FC = () => {
       }
     };
 
-    const handleGameOver = () => {
+    const handleGameEnded = () => {
       modalActions.setIsGameOverModalOpen(true);
     };
+
     socket.on("cardRevealed", handleCardRevealed);
     socket.on("chancellorAction", handleChancellorAction);
-    socket.on("gameOver", handleGameOver);
+    socket.on("gameEnded", handleGameEnded);
 
     return () => {
       socket.off("cardRevealed", handleCardRevealed);
-      socket.off("gameOver", handleGameOver);
       socket.off("chancellorAction", handleChancellorAction);
+      socket.off("gameEnded", handleGameEnded);
     };
   }, [playerId, modalActions]);
 
@@ -104,7 +105,7 @@ const GamePage: React.FC = () => {
       </div>
     );
   }
-
+  
   return (
     <div>
       {game.players.length === game.maxPlayers ? (

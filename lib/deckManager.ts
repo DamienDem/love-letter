@@ -17,7 +17,7 @@ export class DeckManager {
   ];
 
   private static createCard(type: CardType, value: number): ICard {
-    return { id: uuidv4(), type, value };
+    return { id: uuidv4(), type, value, isDrawnThisTurn: true };
   }
 
   static createDeck(): ICard[] {

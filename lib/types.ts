@@ -18,6 +18,7 @@ export interface ICard {
   id: string;
   type: CardType;
   value: number;
+  isDrawnThisTurn: boolean;
 }
 export type CardEffectResult = {
     gameState: IGameState;
@@ -49,7 +50,7 @@ export interface IGameState {
     discardPile: ICard[];
     currentPlayerIndex: number;
     maxPlayers: number;
-    roundWinner: IPlayer | null;
+    roundWinner: IPlayer[];
     gameWinner: IPlayer[];
     playedEspionnes: string[];
     hiddenCard: ICard | null;

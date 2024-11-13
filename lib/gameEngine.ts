@@ -25,7 +25,7 @@ export class GameEngine {
 
     const players = gameData.players.map((p) => ({
       ...p,
-      hand: [DeckManager.drawCard(deck)!],
+      hand: [{ ...DeckManager.drawCard(deck)!, isDrawnThisTurn: false }],
       isEliminated: false,
       points: 0,
       isProtected: false,
@@ -37,7 +37,7 @@ export class GameEngine {
       deck,
       discardPile: [],
       currentPlayerIndex: 0,
-      roundWinner: null,
+      roundWinner: [],
       gameWinner: [],
       playedEspionnes: [],
       hiddenCard,
@@ -86,9 +86,15 @@ export class GameEngine {
 
     const currentPlayer = this.getCurrentPlayer();
     currentPlayer.isProtected = false;
+    if (currentPlayer.hand[0]) {
+      currentPlayer.hand[0].isDrawnThisTurn = false;
+    }
     const newCard = DeckManager.drawCard(this.state.deck);
 
-    if (newCard) currentPlayer.hand.push(newCard);
+    if (newCard) {
+      newCard.isDrawnThisTurn = true;
+      currentPlayer.hand.push(newCard);
+    }
   }
 
   startChancellorAction(): void {
@@ -150,18 +156,18 @@ export class GameEngine {
   private handleRoundEnd(activePlayers: IPlayer[]): void {
     // Gestion des Espionnes
     this.handleEspionnes(activePlayers);
+    if (this.state.gameWinner.length > 0) return;
 
     // Détermination du gagnant
     const roundWinners = this.determineRoundWinners(activePlayers);
-
+    this.state.roundWinner = roundWinners;
     this.awardPoints(roundWinners);
-
-    console.log(
-      "🚀 ~ GameEngine ~ handleRoundEnd ~ checkGameEnd:",
-      this.checkGameEnd()
+    const winners = this.state.players.filter(
+      (p) => p.points >= this.state.pointsToWin
     );
-    // Vérification de la fin du jeu
-    if (!this.checkGameEnd()) {
+    if (winners.length > 0) {
+      this.state.gameWinner = winners;
+    } else {
       this.startNewRound();
     }
   }
@@ -184,27 +190,21 @@ export class GameEngine {
   }
 
   private awardPoints(winners: IPlayer[]): void {
-    winners.forEach((winner) => winner.points++);
-    this.state.roundWinner = winners.length === 1 ? winners[0] : null;
+    winners.forEach((winner) => {
+      const playerInState = this.state.players.find((p) => p.id === winner.id);
+      if (playerInState) {
+        playerInState.points++;
+      }
+    });
   }
-
-  private checkGameEnd(): boolean {
-    const winners = this.state.players.filter(
-      (p) => p.points >= this.state.pointsToWin
-    );
-    if (winners.length > 0) {
-      this.state.gameWinner = winners;
-      return true;
-    }
-    return false;
-  }
-
   startNewRound(): void {
     this.state.deck = DeckManager.createDeck();
     this.state.hiddenCard = DeckManager.drawRandomCard(this.state.deck);
 
     this.state.players.forEach((player) => {
-      player.hand = [DeckManager.drawCard(this.state.deck)!];
+      player.hand = [
+        { ...DeckManager.drawCard(this.state.deck)!, isDrawnThisTurn: false },
+      ];
       player.isEliminated = false;
       player.isProtected = false;
     });
@@ -212,7 +212,7 @@ export class GameEngine {
     this.state.discardPile = [];
     this.state.playedEspionnes = [];
     this.state.chancellorDrawnCards = [];
-    this.state.roundWinner = null;
+    this.state.roundWinner = [];
     this.state.currentRound++;
     this.state.currentPlayerIndex =
       (this.state.currentPlayerIndex + 1) % this.state.players.length;
