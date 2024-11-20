@@ -73,7 +73,6 @@ const GamePage: React.FC = () => {
 
   const handleCardClick = (cardId: string) => {
     if (game?.players[game.currentPlayerIndex].id === playerId) {
-      console.log("Card clicked:", cardId);
       modalActions.setSelectedCardId(cardId);
       modalActions.setIsPlayCardModalOpen(true);
     }

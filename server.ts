@@ -102,8 +102,6 @@ class SocketEventHandler {
         .emit("gameCreated", this.gameManager.getGameState(gameId));
       this.io.emit("gameListUpdated", this.gameManager.getAvailableGames());
     } catch (error) {
-      console.log("Error creating game");
-
       this.handleError(error);
     }
   }
@@ -125,8 +123,6 @@ class SocketEventHandler {
         this.io.emit("gameListUpdated", this.gameManager.getAvailableGames());
       }
     } catch (error) {
-      console.log("Error joining game");
-
       this.handleError(error);
     }
   }

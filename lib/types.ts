@@ -18,7 +18,6 @@ export interface ICard {
   id: string;
   type: CardType;
   value: number;
-  isDrawnThisTurn: boolean;
 }
 export type CardEffectResult = {
     gameState: IGameState;

@@ -25,7 +25,7 @@ export class GameEngine {
 
     const players = gameData.players.map((p) => ({
       ...p,
-      hand: [{ ...DeckManager.drawCard(deck)!, isDrawnThisTurn: false }],
+      hand: [{ ...DeckManager.drawCard(deck)! }],
       isEliminated: false,
       points: 0,
       isProtected: false,
@@ -86,15 +86,9 @@ export class GameEngine {
 
     const currentPlayer = this.getCurrentPlayer();
     currentPlayer.isProtected = false;
-    if (currentPlayer.hand[0]) {
-      currentPlayer.hand[0].isDrawnThisTurn = false;
-    }
     const newCard = DeckManager.drawCard(this.state.deck);
 
-    if (newCard) {
-      newCard.isDrawnThisTurn = true;
-      currentPlayer.hand.push(newCard);
-    }
+    if (newCard) currentPlayer.hand.push(newCard);
   }
 
   startChancellorAction(): void {
@@ -202,9 +196,7 @@ export class GameEngine {
     this.state.hiddenCard = DeckManager.drawRandomCard(this.state.deck);
 
     this.state.players.forEach((player) => {
-      player.hand = [
-        { ...DeckManager.drawCard(this.state.deck)!, isDrawnThisTurn: false },
-      ];
+      player.hand = [{ ...DeckManager.drawCard(this.state.deck)! }];
       player.isEliminated = false;
       player.isProtected = false;
     });

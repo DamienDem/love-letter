@@ -56,14 +56,11 @@ export const useGameState = ({
     };
 
     const handleGameUpdated = (updatedGame: IGameState) => {
-      console.log("🚀 ~ handleGameUpdated ~ updatedGame:", updatedGame)
-      
       setGame(updatedGame);
       updateCurrentPlayer(updatedGame);
 
       // Only check and start turn if not in chancellor action
       if (!updatedGame.isChancellorAction) {
-        
         checkAndStartTurn(updatedGame);
         setIsChancellorActionInProgress(false);
       }
@@ -77,13 +74,12 @@ export const useGameState = ({
     };
 
     const checkAndStartTurn = (gameState: IGameState) => {
-      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
       if (
         !gameState.isChancellorAction &&
-        currentPlayer.id === playerId &&
-        currentPlayer.hand.length === 1 &&
+        gameState.players[gameState.currentPlayerIndex].id === playerId &&
+        gameState.players.find((p) => p.id === playerId)?.hand?.length === 1 &&
         !isChancellorActionInProgress &&
-        !currentPlayer.hand[0].isDrawnThisTurn 
+        gameState.gameWinner.length === 0
       ) {
         socket.emit("startTurn", gameId);
       }
@@ -98,15 +94,15 @@ export const useGameState = ({
           };
         }
         return prev;
-      })
-    }
+      });
+    };
 
     if (!socket.connected) {
       socket.connect();
     }
 
     socket.emit("getGameState", gameId);
-    socket.on("gameEnded",handleGameEnded);
+    socket.on("gameEnded", handleGameEnded);
     socket.on("gameState", handleGameState);
     socket.on("gameUpdated", handleGameUpdated);
     socket.on("error", (error: string) => console.error("Game error:", error));
