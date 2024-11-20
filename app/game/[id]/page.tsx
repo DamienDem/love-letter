@@ -96,6 +96,8 @@ const GamePage: React.FC = () => {
   }
 
   if (!game || !currentPlayer) {
+    console.log("game",game?.id,"currentPlayer",currentPlayer);
+    
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center text-red-600">

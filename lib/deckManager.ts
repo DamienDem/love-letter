@@ -9,7 +9,7 @@ export class DeckManager {
     { type: CardType.Pretre, value: 2, count: 2},
     { type: CardType.Baron, value: 3, count: 2 },
     { type: CardType.Servante, value: 4, count: 2 },
-    { type: CardType.Prince, value: 5, count: 6 },
+    { type: CardType.Prince, value: 5, count: 2 },
     { type: CardType.Chancelier, value: 6, count: 2 },
     { type: CardType.Roi, value: 7, count: 1 },
     { type: CardType.Comtesse, value: 8, count: 1 },
