@@ -114,12 +114,18 @@ class SocketEventHandler {
       const gameState = this.gameManager.getGameState(gameId);
       if (gameState) {
         if (gameState.players.length === gameState.maxPlayers) {
-          this.io.to(gameId).emit("gameStarted", gameState);
+          gameState.players.forEach(p => {
+            const filteredState = this.filterGameStateForPlayer(gameState, p.id);
+            this.io.to(gameId).emit("gameStarted", filteredState);
+          });
         } else {
           this.io.to(gameId).emit("playerJoined", { gameId, player });
         }
 
-        this.io.to(gameId).emit("gameUpdated", gameState);
+        gameState.players.forEach(p => {
+          const filteredState = this.filterGameStateForPlayer(gameState, p.id);
+          this.io.to(gameId).emit("gameUpdated", filteredState);
+        });
         this.io.emit("gameListUpdated", this.gameManager.getAvailableGames());
       }
     } catch (error) {
@@ -127,10 +133,20 @@ class SocketEventHandler {
     }
   }
 
-  private handleGetGameState(gameId: string): void {
+  private filterGameStateForPlayer(gameState: IGameState, playerId: string): IGameState {
+    return {
+      ...gameState,
+      players: gameState.players.map(player => ({
+        ...player,
+        hand: player.id === playerId ? player.hand : []
+      })),
+    };
+  }
+  private handleGetGameState(gameId: string, playerId: string): void {
     const gameState = this.gameManager.getGameState(gameId);
     if (gameState) {
-      this.socket.emit("gameState", gameState);
+      const filteredState = this.filterGameStateForPlayer(gameState, playerId);
+      this.socket.emit("gameState", filteredState);
     } else {
       this.socket.emit("error", "Game not found");
     }
@@ -151,7 +167,10 @@ class SocketEventHandler {
           this.handleRoundEnd(gameState, gameId);
         }
         if (gameState.gameWinner.length === 0) {
-          this.io.to(gameId).emit("gameUpdated", gameState);
+          gameState.players.forEach(p => {
+            const filteredState = this.filterGameStateForPlayer(gameState, p.id);
+            this.io.to(gameId).emit("gameUpdated", filteredState);
+          });
         }
       }
     } catch (error) {
@@ -166,7 +185,10 @@ class SocketEventHandler {
       const activePlayers = gameState?.players.filter((p) => !p.isEliminated);
 
       if (gameState) {
-        this.io.to(data.gameId).emit("gameUpdated", gameState);
+        gameState.players.forEach(p => {
+          const filteredState = this.filterGameStateForPlayer(gameState, p.id);
+          this.io.to(data.gameId).emit("gameUpdated", filteredState);
+        });
         if (
           activePlayers?.length === 1 ||
           (gameState.deck.length === 0 &&

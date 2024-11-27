@@ -101,7 +101,7 @@ export const useGameState = ({
       socket.connect();
     }
 
-    socket.emit("getGameState", gameId);
+    socket.emit("getGameState", gameId, playerId);
     socket.on("gameEnded", handleGameEnded);
     socket.on("gameState", handleGameState);
     socket.on("gameUpdated", handleGameUpdated);
